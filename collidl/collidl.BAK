@@ -1,0 +1,1417 @@
+
+;This program is supposed to read an image file, determine the sphere positions,
+;do the triangulation and generate the orientation field
+
+pro try, newimg
+
+			newred=reform(newimg[0,*,*])
+			newgreen=reform(newimg[1,*,*])
+			newblue=reform(newimg[2,*,*])
+			showimage,[[[newred]],[[newgreen]],[[newblue]]],3,wcombined
+
+end
+
+
+function readimage, dummy
+	current_window = !d.window
+	xsize = !d.x_size
+	ysize = !d.y_size
+	window, /pixmap,/free, xsize=xsize, ysize=ysize, retain=2
+	device, copy=[0, 0, xsize, ysize, 0, 0, current_window]
+	image = tvrd(order=0,true=1)
+	wdelete, !d.window
+	wset, current_window
+	return,image
+end
+
+
+pro smooth, input, output, weights, howmuch
+
+	for aa=-howmuch, howmuch do begin
+	for bb=-howmuch, howmuch do begin
+		output=output+weights[aa+howmuch, bb+howmuch]*shift(input,aa,bb)
+	endfor
+	endfor
+
+end
+
+
+
+;********************************************************
+;USED FOR FITTING THE EXPONENTIAL DECAY
+;********************************************************
+PRO funct, X, A, F, PDER
+
+	  F = A[0] * (EXP(-X/A[1]))
+	;If the function is called with four parameters,
+	;calculate the partial derivatives:
+
+
+IF N_PARAMS() GE 4 THEN BEGIN
+	;PDER's column dimension is equal to the number of elements
+	;in xi and its row dimension is equal to the number of
+	;parameters in the function F:
+	    pder = FLTARR(N_ELEMENTS(X), 2)
+	;Compute the partial derivatives with respect to a0 and
+	;place in the first row of PDER.
+	   pder[*, 0] =  EXP(-X/A[1])
+	;Compute the partial derivatives with respect to a1 and
+	;place in the second row of PDER.
+
+	   pder[*, 1] = (A[0]*X/(A[1]*A[1]))*EXP(-X/A[1])
+ENDIF
+END
+
+
+
+PRO funct1, X, A, F, PDER
+
+F =  (EXP(-X/A[0]))
+;If the function is called with four parameters,
+;calculate the partial derivatives:
+
+
+  IF N_PARAMS() GE 4 THEN BEGIN
+;PDER's column dimension is equal to the number of elements
+;in xi and its row dimension is equal to the number of
+;parameters in the function F:
+    pder = FLTARR(N_ELEMENTS(X), 1)
+;Compute the partial derivatives with respect to a0 and
+;place in the first row of PDER.
+    pder[*, 0] = (X/(A[0]*A[0]))* EXP(-X/A[0])
+;Compute the partial derivatives with respect to a1 and
+;place in the second row of PDER.
+
+  ENDIF
+END
+
+
+
+
+
+
+;************************************************************************
+;AUTOCORRELATION PROCEDURE
+;
+;we will take a complex order parameter array of size x,y and put it into a bigger
+;array of size 2x, 2y, padding with zeros as per usual, so we can do
+;autocorrelations oflong distances.
+;in doing so we now have a big jumpat the edges - from 0 to whatever the
+;data is - so we  put a smooth descent at edges
+;this trick is the Wiener Khitchine short cut - see my thesis, chapter 6?
+;for quickly calculating an autocorrelation.
+;INPUT: complex ORDERPARAMETER, int REPEATSPACING
+;OUTPUT: COMPLEX SHIFTEDAUTOCORRELATION, INTENSITYARRAY, INTENSITYCOUNTARRAY
+;
+;************************************************************************
+pro DoAutoCorrelation, OrderParameter,RepeatSpacing,ShiftedAutoCorrelation, IntensityArray,IntensityCountArray
+
+
+			n=size(OrderParameter)
+			xs=n[1]-1
+			ys=n[2]-1
+
+
+			BigFloatArray=fltarr(2*(xs+1),2*(ys+1))
+			BigOrderParameterArray=complex(BigFloatArray,BigFloatArray)
+			BigOrderParameterArray(((xs+1)/2):((xs+1)/2)+xs,((ys+1)/2):((ys+1)/2)+ys)=OrderParameter
+
+
+;HERE I SHOULD SMOOTH THE EDGE STEP.
+;do the left strip
+
+
+			LeftStrip=BigOrderParameterArray( (((xs+1)/2)-1*RepeatSpacing):((xs+1)/2)+1*RepeatSpacing,(((ys+1)/2)-RepeatSpacing):((ys+1)/2)+ys+RepeatSpacing)
+			LeftStrip= SMOOTH( LeftStrip, RepeatSpacing, /EDGE_TRUNCATE )
+			BigOrderParameterArray( (((xs+1)/2)-1*RepeatSpacing):((xs+1)/2)+1*RepeatSpacing,(((ys+1)/2)-RepeatSpacing):((ys+1)/2)+ys+RepeatSpacing)=LeftStrip
+
+
+			RightStrip=BigOrderParameterArray( (( xs+(xs+1)/2)-1*RepeatSpacing):xs+((xs+1)/2)+1*RepeatSpacing,(((ys+1)/2)-RepeatSpacing):((ys+1)/2)+ys+RepeatSpacing)
+			RightStrip= SMOOTH( RightStrip, RepeatSpacing, /EDGE_TRUNCATE )
+			BigOrderParameterArray( (( xs+(xs+1)/2)-1*RepeatSpacing):xs+((xs+1)/2)+1*RepeatSpacing,(((ys+1)/2)-RepeatSpacing):((ys+1)/2)+ys+RepeatSpacing)=RightStrip
+
+			TopStrip=BigOrderParameterArray( (((xs+1)/2)-1*RepeatSpacing):xs+((xs+1)/2)+1*RepeatSpacing,(((ys+1)/2)-RepeatSpacing):((ys+1)/2)+RepeatSpacing)
+			TopStrip= SMOOTH( TopStrip, RepeatSpacing, /EDGE_TRUNCATE )
+			BigOrderParameterArray( (((xs+1)/2)-1*RepeatSpacing):xs+((xs+1)/2)+1*RepeatSpacing,(((ys+1)/2)-RepeatSpacing):((ys+1)/2)+RepeatSpacing)=TopStrip
+
+			BottomStrip=BigOrderParameterArray( (((xs+1)/2)-1*RepeatSpacing):xs+((xs+1)/2)+1*RepeatSpacing,ys+(((ys+1)/2)-RepeatSpacing):ys+((ys+1)/2)+RepeatSpacing)
+			BottomStrip= SMOOTH( BottomStrip, RepeatSpacing, /EDGE_TRUNCATE )
+			BigOrderParameterArray( (((xs+1)/2)-1*RepeatSpacing):xs+((xs+1)/2)+1*RepeatSpacing,ys+(((ys+1)/2)-RepeatSpacing):ys+((ys+1)/2)+RepeatSpacing)=BottomStrip
+
+
+
+
+			;f=shift(fft(data),n(0)/2,n(1)/2)
+			;window,4,xsize=n(0)+140,ysize=n(1)+140
+			;tvscl,alog(abs(f)),100,100 & tv,bytscl(rebin(abs(f),n(0)/8,n(1)/8),max=2),100,100
+
+
+		    MyFFT = FFT(BigOrderParameterArray, -1) ;forward fft
+;			MyFFT=fft(data1,-1) ;delete this
+			n=size(MyFFT) & n=n(1:n(0))
+
+		    ;Dummy=shift(MyFFT,n(0)/2,n(1)/2)
+		    ;window,6, xsize=n(0), ysize=n(1)
+			;tvscl,alog(abs(Dummy))  ;,100,100
+			;tv,bytscl(rebin(abs(Dummy),n(0)/8,n(1)/8),max=2)
+
+
+;			tv,bytscl(-255 * alog10( abs(MyFFT))/Max(-alog10(abs(MyFFT))))
+
+
+			SquaredFFT=(MyFFT)*CONJ(MyFFT) ; lop off the phase to prepare for autocorrelation
+
+
+			AutoCorrelation=FFT(SquaredFFT,1)		;backwards fft
+			;autocorrelation should be in the AutoCorrelation array
+
+			ShiftedAutoCorrelation=shift(AutoCorrelation,n(0)/2,n(1)/2)
+			ShiftedAutoCorrelation=ShiftedAutoCorrelation(xs/2:3*xs/2+1,ys/2:3*ys/2+1)
+
+		;	window,6, xsize=xs, ysize=ys
+		;	tvscl,bytscl(ShiftedAutoCorrelation)
+
+;now let's average this .....properly
+;it's a 2D array, but one dimension is one long.
+
+			IntensityArray=fltarr(1,2*xs+1)
+			IntensityCountArray=intarr(1,2*xs+1)
+;
+;			for xx=0L,((2*xs)+1) do begin
+;				for yy=0L,((2*ys)+1) do begin
+;							Radius=round(sqrt((xx)*(xx)+(yy)*(yy)))
+;							IntensityArray[Radius]=IntensityArray[Radius]+float(ShiftedAutoCorrelation(xx,yy)) ;just get real component with float
+;							IntensityCountArray[Radius]=IntensityCountArray[Radius]+1
+;						endfor
+;			endfor
+
+
+
+
+;note that each quadrant is done separately.
+; there is probably a more intelligent way to write this
+; but I'm a lazy sod.
+
+;1 top left
+			for xx=0L,((xs)) do begin
+				for yy=0L,((ys)) do begin
+							Radius=round(sqrt(xx*xx+yy*yy))
+							IntensityArray[Radius]=IntensityArray[Radius]+float(AutoCorrelation(xx,yy)) ;just get real component with float
+							IntensityCountArray[Radius]=IntensityCountArray[Radius]+1
+						endfor
+			endfor
+
+;2 top right
+			for xx=(xs+1)*1L,(2*xs+1) do begin
+				for yy=0L,(ys) do begin
+							Radius=round(sqrt((1+2*xs-xx)*(1+2*xs-xx)+yy*yy))
+							IntensityArray[Radius]=IntensityArray[Radius]+float(AutoCorrelation(xx,yy)) ;just get real component with float
+							IntensityCountArray[Radius]=IntensityCountArray[Radius]+1
+						endfor
+			endfor
+
+;3 bottom left
+			for xx=0L,(xs) do begin
+				for yy=(ys+1)*1L,(2*ys+1) do begin
+							Radius=round(sqrt(xx*xx+(2*ys+1-yy)*(2*ys+1-yy)))
+							IntensityArray[Radius]=IntensityArray[Radius]+float(AutoCorrelation(xx,yy)) ;just get real component with float
+							IntensityCountArray[Radius]=IntensityCountArray[Radius]+1
+						endfor
+			endfor
+
+;4 bottom right
+			for xx=(xs)*1L,(2*xs+1) do begin
+				for yy=(ys)*1L,(2*ys+1) do begin
+							Radius=round(sqrt((2*xs+1-xx)*(2*xs+1-xx)+(2*ys+1-yy)*(2*ys+1-yy)))
+							IntensityArray[Radius]=IntensityArray[Radius]+float(AutoCorrelation(xx,yy)) ;just get real component with float
+							IntensityCountArray[Radius]=IntensityCountArray[Radius]+1
+						endfor
+			endfor
+
+
+
+;once we have the sum of the correlation intensities for all pairs, averaging over
+;all theta for that particular distance, we need to get the AVERAGE correlation
+;intensity by dividing by the number of pairs.
+
+			for xx=0L,((2*xs)) do begin
+						if (IntensityCountArray[xx] ne 0) then  IntensityArray[xx]=IntensityArray[xx]/(1.0*IntensityCountArray[xx])
+						endfor
+			Normalizer=IntensityArray[0]
+			for xx=0L,(2*xs) do begin
+							IntensityArray[xx]=IntensityArray[xx]/Normalizer
+						endfor
+
+end
+
+
+
+
+
+
+function colorred,index
+return,255*(1+sin(index*2*!pi/255))/2
+end
+
+function colorgreen,index
+return,255*(1+sin(index*2*!pi/255-2*!pi/3))/2
+end
+
+function colorblue,index
+return,255*(1+sin(index*2*!pi/255+2*!pi/3))/2
+end
+
+
+function colortable,verbose=verbose,data,fs,winid
+	if(keyword_set(verbose)) then begin
+		fs=dialog_pickfile(get_path=ps)
+		if strmid(strlowcase(fs(0)),strlen(fs(0))-3,3) ne 'tif' then readlist,fs(0),fs,path=ps else fs=[fs]
+		print,'Now doing: ',fs(0)
+		data1=read_tiff(fs(0))
+		fname=fs(0)
+	endif else begin
+		data1=data*255*3./(!pi)
+		fname=fs
+	endelse
+
+		n=size(data1);
+		dim1=n(1);
+		dim2=n(2);
+
+		image2=fltarr(3,dim1,dim2)
+		;imrd=colorred(data1)
+		;imgr=colorgreen(data1)
+		;imbl=colorblue(data1)
+
+		r=[6*replicate(42,43),6*(42-indgen(42)),6*replicate(0,86),6*indgen(42),6*replicate(42,43)]
+		g=[6*replicate(0,86),6*indgen(42),6*replicate(42,43),6*replicate(42,43),6*(42-indgen(42))]
+		b=[6*indgen(42),6*replicate(42,43),6*replicate(42,43),6*(42-indgen(42)),6*replicate(0,86)]
+		imrd=r(data1)
+		imgr=g(data1)
+		imbl=b(data1)
+
+
+
+
+		image2(0,*,*)=imrd
+		image2(1,*,*)=imgr
+		image2(2,*,*)=imbl
+		image1=[[[imrd]],[[imgr]],[[imbl]]]
+		;print,image
+		;help,image1
+		return, image1
+
+
+;		tvscl,image1,true=3
+;		write_tiff, strmid(fname,0,strlen(fname)-4)+'color.tif', bytscl(image2),0
+;		smpltiff,strmid(fs[i],0,strlen(fs[i])-4)+'color.tif',bytscl(image1)
+
+end
+
+
+
+
+function sign_of, x
+
+	if (x lt 0) then return, -1
+	if (x gt 0) then return,  1
+	return,0
+
+end
+
+
+
+pro make_single_bond_between,vertex1, vertex2,nvertices,edges,unbounddisc, inbounds, inprocess, bound
+
+	nn1=edges[vertex1+1]-edges[vertex1]
+	nn2=edges[vertex2+1]-edges[vertex2]
+
+	if ((nn1 eq 6) or (nn2 eq 6)) then stop
+
+	var1=edges[vertex1]+where(edges[edges[vertex1]:edges[vertex1+1]-1] eq vertex2)
+	bound[var1]=bound[var1]+1
+	var1=edges[vertex2]+where(edges[edges[vertex2]:edges[vertex2+1]-1] eq vertex1)
+	bound[var1]=bound[var1]+1
+	var2=unbounddisc[vertex1]
+	if (var2 eq 0)  then begin
+		var21=0
+	end else begin; Not quite sure if this is right, need to check matt's code
+		var21=var2/abs(var2)
+	end
+	unbounddisc[vertex1]=var2-var21
+
+	var2=unbounddisc[vertex2]
+	if (var2 eq 0)  then begin
+		var21=0
+	end else begin; Not quite sure if this is right, need to check matt's code
+		var21=var2/abs(var2)
+	end
+	unbounddisc[vertex2]=var2-var21
+
+;	print, "making bond between ",vertex1,vertex2
+
+	plots,[!goodx[vertex1]/!xss,!goodx[vertex2]/!xss],[1-!goody[vertex1]/!yss,1-!goody[vertex2]/!yss],/normal,color=!colordisloc,thick=2
+
+end
+
+
+
+
+pro break_single_bond_between,vertex1, vertex2,nvertices,edges,unbounddisc, inbounds, inprocess, bound
+	var1=edges[vertex1]+where(edges[edges[vertex1]:edges[vertex1+1]-1] eq vertex2)
+	bound[var1]=bound[var1]-1
+	var1=edges[vertex2]+where(edges[edges[vertex2]:edges[vertex2+1]-1] eq vertex1)
+	bound[var1]=bound[var1]-1
+
+	nn1=edges[vertex1+1]-edges[vertex1]-6
+	nn2=edges[vertex2+1]-edges[vertex2]-6
+
+	unbounddisc[vertex1]=unbounddisc[vertex1]+sign_of(nn1)
+	unbounddisc[vertex2]=unbounddisc[vertex2]+sign_of(nn2)
+
+;	print, "breaking bond between ",vertex1,vertex2
+	;erase old bond
+
+	plots,[!goodx[vertex1]/!xss,!goodx[vertex2]/!xss],[1-!goody[vertex1]/!yss,1-!goody[vertex2]/!yss],/normal,color=!colorwhite,thick=2
+	plots,[!goodx[vertex1]/!xss,!goodx[vertex2]/!xss],[1-!goody[vertex1]/!yss,1-!goody[vertex2]/!yss],/normal,color=!colorbond,thick=1.5
+end
+
+
+
+
+function it_would_help_to_bond_nicely ,vertex1,vertex2,edges, unbounddisc, inbounds, inprocess,bound,outofboundsok
+	nvertices=n_elements(inbounds)
+	if ((sign_of(unbounddisc[vertex1]) eq -sign_of(unbounddisc[vertex2])) and (inprocess(vertex2) eq 0) ) then begin
+	;	if (((unbounddisc[vertex1]*unbounddisc[vertex2] lt 0)) and (inprocess(vertex2) eq 0) ) then begin
+	if ((inbounds(vertex2) eq 1) or (outofboundsok eq 1)) then begin
+		return,1
+	end
+	end else begin
+		return,0
+	end
+end
+
+
+
+
+
+function try_to_find_a_mate_nicely_for, vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound,outofboundsok
+;	print, "try_to_find_mates_nicely_for",vertex
+	for n=edges[vertex], edges[vertex+1]-1	do begin
+		if(it_would_help_to_bond_nicely(vertex,edges[n],edges, unbounddisc,inbounds, inprocess,bound,outofboundsok) eq 1) then begin
+			make_single_bond_between,vertex, edges[n],nvertices,edges,unbounddisc, inbounds, inprocess,bound
+			return,1
+		end
+	endfor
+	return,0
+end
+
+
+; There is a problem with sign of...
+
+function it_would_help_me_to_butt_in_on, vertex1, vertex2,edges,unbounddisc, inbounds, inprocess,bound,outofboundsok
+	nvertices=n_elements(inbounds)
+	nn1=edges[vertex1+1]-edges[vertex1]-6
+	nn2=edges[vertex2+1]-edges[vertex2]-6
+	if (sign_of(nn1) eq -sign_of(nn2)) then begin
+;	if ((unbounddisc[vertex1]*unbounddisc[vertex2] lt 0)) then begin
+	if (inprocess(vertex2) eq 0) then begin
+		return,1
+	end
+	end else begin
+		return,0
+	end
+end
+
+function can_retract_from, vertex1, vertex2, edges, unbounddisc, inbounds, inprocess,bound,outofboundsok
+	inprocess[vertex1]=1
+	break_single_bond_between,vertex1, vertex2,nvertices,edges,unbounddisc, inbounds, inprocess, bound
+
+	if ((inbounds[vertex2] ne 1)) then begin
+		inprocess[vertex1]=0
+		return,1
+	end
+
+
+	if ((try_to_find_a_mate_nicely_for(vertex2,nvertices,edges,unbounddisc, inbounds, inprocess,bound,outofboundsok) eq 1)) then begin
+		inprocess[vertex1]=0
+		return,1
+	end
+
+	if (try_to_find_a_mate_rudely_for(vertex2,nvertices,edges,unbounddisc, inbounds, inprocess,bound,outofboundsok) eq 1) then begin
+		inprocess[vertex1]=0
+		return,1
+	end
+
+	make_single_bond_between,vertex1, vertex2,nvertices,edges,unbounddisc, inbounds, inprocess, bound
+	inprocess[vertex1]=0
+	return,0
+end
+
+function can_butt_in_on, vertex1, vertex2,edges, unbounddisc, inbounds, inprocess,bound,outofboundsok
+	nvertices=n_elements(inbounds)
+
+	if ((inbounds[vertex2] eq 0) and (outofboundsok eq 0)) then begin
+		return,0
+	end
+
+	inprocess[vertex1]=1
+
+	for i=edges[vertex2], edges[vertex2+1]-1 do begin
+		if (bound[i] gt 0) and ((inbounds[edges[i]] eq 1) or (outofboundsok eq 1)) then begin
+		if (can_retract_from(vertex2, edges[i],edges, unbounddisc, inbounds, inprocess,bound,outofboundsok) eq 1) then begin
+			inprocess(vertex1)=0
+			return,1
+		end
+		end
+	endfor
+	inprocess(vertex1)=0
+	return,0
+end
+
+
+function try_to_find_a_mate_rudely_for, vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound,outofboundsok
+
+	for n=edges[vertex], edges[vertex+1]-1	do begin
+		if (it_would_help_me_to_butt_in_on(vertex, edges[n],edges,unbounddisc, inbounds, inprocess,bound,outofboundsok) eq 1 ) then begin
+		if (can_butt_in_on(vertex, edges[n],edges, unbounddisc,inbounds, inprocess,bound,outofboundsok) eq 1) then begin
+			make_single_bond_between,vertex, edges[n],nvertices,edges,unbounddisc, inbounds, inprocess,bound
+			return,1
+		end
+		end
+	endfor
+
+	return,0
+end
+
+pro try_to_find_mates_for,vertex,nvertices,edges,unbounddisc, inbounds, inprocess, bound
+	if (inbounds[vertex] eq 1) then begin
+		inprocess(vertex)=1
+jump0:		if (unbounddisc[vertex] eq 0) then goto,jump1
+		if (try_to_find_a_mate_nicely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound,0) eq 0) then goto,jump1
+		goto,jump0
+
+jump1:		if (unbounddisc[vertex] eq 0) then goto,jump2
+		if (try_to_find_a_mate_rudely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound,0) eq 0) then goto,jump2
+		goto,jump1
+
+jump2:		if (unbounddisc[vertex] eq 0) then goto,jump3
+		if (try_to_find_a_mate_nicely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound,1) eq 0) then goto,jump3
+		goto,jump2
+
+jump3:		if (unbounddisc[vertex] eq 0) then goto,jump4
+		if (try_to_find_a_mate_rudely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound,1) eq 0) then goto,jump4
+		goto,jump3
+
+jump4:		inprocess(vertex)=0
+	end
+end
+
+
+pro find_unbound_disc,nvertices,edges,unbounddisc, inbounds,inprocess,bound
+	for i=0, nvertices-1 do begin
+;		print, "vertex ", i, unbounddisc[i]
+		try_to_find_mates_for,i,nvertices,edges,unbounddisc, inbounds, inprocess,bound
+	end
+end
+
+
+function rgbcolor,R,G,B
+
+	return,R+256L*(G+256L*B)
+
+end
+
+
+
+; MAIN PROGRAM
+
+pro main,big=big,simu=simu,stay=stay,wait=wait,twomicron=twomicron,unfilt=unfilt
+
+	;*****************************************************
+
+		; Switches : 	/big : use if picturesize is 1024X1024
+		;		/stay : in order to keep the windows on the screen. Useful
+		;			when working with only one file, a pain otherwise
+		;		/simu : sets the sphere-locator parameters to the simulation size
+		;		/twomicron : sets the parameters for 2-micron picture
+		;		/wait : waits for 5 secs after each file processed
+
+	;*****************************************************
+
+		; These are various switches used to control the behaviour of the
+		; program
+		; 0 = do it, 1 = don't
+		; CAREFUL, this is different from the truth value in C !
+
+
+		; all of these are old ways of doing correlations, either not
+		; reliabe or way too slow
+		translatecorr=1 ; calculate correlations by the image-translation technique
+		directcorr=1 ; calculate correlations directly
+		ffcorr=1 ; do the Fourier transform trick to get correlations
+		brutecorr=1 ; do the brute force calculations in IDL.
+
+
+		; this is the latest trick, works great
+		Ccorr=1	; spawn an external c-program (called robcor) which does
+			; the correlation calculations fast. Best way so far. By far.
+
+
+
+		gofr=1; whether to do radial distributions g(r)
+
+		showdiscbefore=0; whether to display the
+				; disclinations before drawing dislocations
+
+
+	;********************************************************
+
+		; in order to redraw windows
+		device,retain=2
+
+		; create gaussian weights used for smoothing the angular field
+		; howmuch (pixels out of 256) controls the smoothing of the angular correlation file
+
+		howmuch=5
+		weights=fltarr(2*howmuch+1,2*howmuch+1)
+		norm=0
+		for aa=-howmuch, howmuch do begin
+		for bb=-howmuch, howmuch do begin
+			weights[aa+howmuch, bb+howmuch]=exp(-(aa*aa+bb*bb)/(howmuch*howmuch))
+			norm=norm+weights[aa+howmuch, bb+howmuch]
+		endfor
+		endfor
+		weights=weights/norm
+		W=fltarr(1000)
+		W[*]=1
+
+
+		cd, "e:\matt\research\idl_trawick\dan_idl\Collidl\" ; make this your favorite data directory
+		; read files either as a list (.txt file with all names) or by selecting them by hand
+		fs=dialog_pickfile(get_path=ps,/multiple_files)
+		if strmid(strlowcase(fs(0)),strlen(fs(0))-3,3) ne 'tif' then readlist,fs(0),fs,path=ps else fs=[fs]
+		; this is where all the info is dumped, then written to the summary file
+		Summary_of_Data=fltarr(10, n_elements(fs))
+
+; THE MASTER LOOP
+
+		for i=0,n_elements(fs)-1 do begin
+
+
+			print,'Now working on : ',fs(i)
+			if(keyword_set(unfilt)) then begin
+				unfilt1=strpos(fs[i],"fil")
+				if(unfilt1 eq -1) then begin
+					print, "IF USED WITH /UNFILT, YOU MUST INPUT ONLY NAMES THAT CONTAIN FIL"
+					return
+				end else begin
+					unfiltname=strmid(fs[i],0,unfilt1)+strmid(fs[i],unfilt1+3,strlen(fs[i]))
+					dataunfilt=read_tiff(unfiltname)
+				end
+				;print, fs[i],"   ",unfiltname
+				;stop
+			end
+
+
+			count=0
+
+			data=read_tiff(fs(i));
+			n=size(data)
+			xs=n[1]
+			ys=n[2]
+
+			if (keyword_set(big)) then begin
+			end else begin
+				; bring it to 1024X1024
+				data=Interpolate(data,findgen(2*n[1])/2,findgen(2*n[2])/2,/grid)
+				if (keyword_set(unfilt)) then begin
+					dataunfilt=Interpolate(dataunfilt,findgen(2*n[1])/2,findgen(2*n[2])/2,/grid)
+				end
+			end
+
+
+			; parameters for the sphere locator
+			sphere_diameter=4
+			if (keyword_set(simu)) then begin
+				sphere_diameter=8
+			endif
+
+			if (keyword_set(twomicron)) then begin
+				sphere_diameter=6
+			endif
+			; locate the centers of the spheres
+			; these are (C) John Crocker http://glinda.lrsm.upenn.edu/~weeks/idl/
+			data2=bpass(data,1,sphere_diameter)
+			data1=feature(data2,sphere_diameter)
+
+
+			ns=size(data)
+
+			; Various global variables, like x-size, y-size, various colors
+			DEFSYSV, '!xss',ns[1]-1
+			DEFSYSV, '!yss',ns[2]-1
+
+			;R+256L*(G+256L*B)
+			DEFSYSV, '!colordisc7' ,  rgbcolor(0,255,0) ; green
+			DEFSYSV, '!colordisc5' ,  rgbcolor(255,0,0); red
+			DEFSYSV, '!colordisc4' , rgbcolor(255,0,255) ; magenta
+			DEFSYSV, '!colordisc8' ,  rgbcolor(0,255,255) ; cyan
+			DEFSYSV, '!colordisloc' , rgbcolor(255,255,0) ; yellow
+			DEFSYSV, '!colorbond' , rgbcolor(0,0,255); blue
+			DEFSYSV, '!colorwhite' , rgbcolor(255,255,255) ; white
+
+			; used to hold the cooordinates of the particles
+			DEFSYSV, '!goodx',fltarr(100000)
+			DEFSYSV, '!goody',fltarr(100000)
+
+
+
+			print, "X,Y image size : ", !xss+1, !yss+1
+
+
+			data=reverse(data,2)
+			img=[[[data]],[[data]],[[data]]]
+			; the showimage package is a really smart way of drawing a window
+			showimage,bytscl(img,min=0,max=255),3,wimage
+			origimg=readimage(0)
+
+			if (keyword_set(unfilt)) then begin
+				dataunfilt=reverse(dataunfilt,2)
+				imgunfilt=[[[dataunfilt]],[[dataunfilt]],[[dataunfilt]]]
+				; the showimage package is a really smart way of drawing a window
+				showimage,bytscl(imgunfilt,min=0,max=255),3,wimageunfilt
+				origimgunfilt=readimage(0)
+			end
+
+
+
+			img=bytarr(!xss+1,!yss+1,3)+255
+			showimage,img,3,wbonds
+
+			nvertices=n_elements(data1[0,1:*])
+			!goodx[0:nvertices-1]=data1[0,1:*]
+			!goody[0:nvertices-1]=data1[1,1:*]
+
+			; at the exit, edges will have a weird format, read idl help
+			; on "triangulate" - this is the main source of errors in code
+			triangulate, !goodx, !goody, triangles, outermost, CONNECTIVITY = edges
+
+			areavertex=!xss*!yss/nvertices
+			bondlength=sqrt(areavertex*4/sqrt(3))
+			print, "Average bond length a=",bondlength
+
+			disc=fltarr(nvertices)
+			inbounds=intarr(nvertices)
+			inprocess=intarr(nvertices)
+			bondsx=fltarr(100000)
+			bondsy=fltarr(100000)
+			bondsangle=fltarr(100000)
+			bondcount=0L;
+			inboundsmult=1.5
+			nedges=n_elements(edges)
+			bound=intarr(nedges)
+
+
+			inbounds[where((!goodx gt inboundsmult*bondlength) and (!goodx lt !xss-inboundsmult*bondlength) and (!goody gt inboundsmult*bondlength) and (!goody lt !yss-inboundsmult*bondlength))]=1;
+
+
+
+
+
+
+			for i1=0,nvertices-1 do begin
+				disc[i1]=edges[i1+1]-edges[i1] ; # neighbors
+				for j1=edges[i1],edges[i1+1]-1 do begin
+					; collect angle data from the bond
+					if (i1 lt edges[j1]) then begin
+						plots,[!goodx[edges[j1]]/!xss,!goodx[i1]/!xss],[1-!goody[edges[j1]]/!yss,1-!goody[i1]/!yss],/normal,color=!colorbond,thick=1.5
+						bondsx[bondcount]=(!goodx[i1]+!goodx[edges[j1]])/2
+						bondsy[bondcount]=(!goody[i1]+!goody[edges[j1]])/2
+						ang1=!pi+atan(!goody[i1]-!goody[edges[j1]],!goodx[i1]-!goodx[edges[j1]])
+						ang=ang1-(!pi/3.)*floor(ang1*3/!pi)
+						bondsangle[bondcount]=ang
+						bondcount=bondcount+1
+					endif
+				endfor
+			endfor
+
+			unbounddisc=disc-6; unbound disclinationality phew !
+
+			;size of a disclination square on the screen
+			discsize=1
+
+			disc5=0 ; # inbounds 5s, total
+			disc7=0 ; # inbounds 7s, total
+
+		if (showdiscbefore eq 0) then begin
+			for i1=0,nvertices-1 do begin
+
+				if (disc[i1] lt 5) then begin
+					for discind=-discsize,discsize do begin
+						plots,[(!goodx[i1]-discsize)/!xss,(!goodx[i1]+discsize)/!xss],[1-(!goody[i1]+discind)/!yss,1-(!goody[i1]+discind)/!yss],/normal,color=!colordisc4
+					endfor
+				end
+
+				if (disc[i1] eq 5) then begin
+					for discind=-discsize,discsize do begin
+						plots,[(!goodx[i1]-discsize)/!xss,(!goodx[i1]+discsize)/!xss],[1-(!goody[i1]+discind)/!yss,1-(!goody[i1]+discind)/!yss],/normal,color=!colordisc5
+					endfor
+					if ((!goodx[i1] gt inboundsmult*bondlength) and (!goodx[i1] lt !xss-inboundsmult*bondlength) and (!goody[i1] lt !yss-inboundsmult*bondlength) and (!goody[i1] gt inboundsmult*bondlength)) then begin
+						disc5=disc5+1
+					end
+				end
+
+
+
+				if (disc[i1] gt 7) then begin
+					for discind=-discsize,discsize do begin
+						plots,[(!goodx[i1]-discsize)/!xss,(!goodx[i1]+discsize)/!xss],[1-(!goody[i1]+discind)/!yss,1-(!goody[i1]+discind)/!yss],/normal,color=!colordisc8
+					endfor
+				end
+
+				if (disc[i1] eq 7) then begin
+					for discind=-discsize,discsize do begin
+						plots,[(!goodx[i1]-discsize)/!xss,(!goodx[i1]+discsize)/!xss],[1-(!goody[i1]+discind)/!yss,1-(!goody[i1]+discind)/!yss],/normal,color=!colordisc7
+					endfor
+					if ((!goodx[i1] gt inboundsmult*bondlength) and (!goodx[i1] lt !xss-inboundsmult*bondlength) and (!goody[i1] lt !yss-inboundsmult*bondlength) and (!goody[i1] gt inboundsmult*bondlength)) then begin
+						disc7=disc7+1
+				end
+				end
+
+			endfor
+
+		end
+
+
+			; runs Matt's code on finding dislocations
+			; at the return, bound will have the bonded nighbours, in the "edges" format
+			; read the idl help on "triangulate" for an explanation of the format
+			; bound[i] will be 1 if there is a bond or 0 otherwise
+			find_unbound_disc,nvertices,edges,unbounddisc, inbounds,inprocess, bound
+
+			disc5=0; total # 5s
+			disc7=0; total # 7s
+			for i1=0,nvertices-1 do begin
+				;the sizes for bound and unbound disclinations
+				discsize=1
+				if (unbounddisc[i1] ne 0) then discsize=2
+
+				if (disc[i1] lt 5) then begin
+					for discind=-discsize,discsize do begin
+						plots,[(!goodx[i1]-discsize)/!xss,(!goodx[i1]+discsize)/!xss],[1-(!goody[i1]+discind)/!yss,1-(!goody[i1]+discind)/!yss],/normal,color=!colordisc4
+					endfor
+				end
+
+				if (disc[i1] eq 5) then begin
+					for discind=-discsize,discsize do begin
+						plots,[(!goodx[i1]-discsize)/!xss,(!goodx[i1]+discsize)/!xss],[1-(!goody[i1]+discind)/!yss,1-(!goody[i1]+discind)/!yss],/normal,color=!colordisc5
+					endfor
+					if ((!goodx[i1] gt inboundsmult*bondlength) and (!goodx[i1] lt !xss-inboundsmult*bondlength) and (!goody[i1] lt !yss-inboundsmult*bondlength) and (!goody[i1] gt inboundsmult*bondlength)) then begin
+						disc5=disc5+1
+				end
+				end
+
+
+
+				if (disc[i1] gt 7) then begin
+					for discind=-discsize,discsize do begin
+						plots,[(!goodx[i1]-discsize)/!xss,(!goodx[i1]+discsize)/!xss],[1-(!goody[i1]+discind)/!yss,1-(!goody[i1]+discind)/!yss],/normal,color=!colordisc8
+					endfor
+				end
+
+				if (disc[i1] eq 7) then begin
+					for discind=-discsize,discsize do begin
+						plots,[(!goodx[i1]-discsize)/!xss,(!goodx[i1]+discsize)/!xss],[1-(!goody[i1]+discind)/!yss,1-(!goody[i1]+discind)/!yss],/normal,color=!colordisc7
+					endfor
+					if ((!goodx[i1] gt inboundsmult*bondlength) and (!goodx[i1] lt !xss-inboundsmult*bondlength) and (!goody[i1] lt !yss-inboundsmult*bondlength) and (!goody[i1] gt inboundsmult*bondlength)) then begin
+						disc7=disc7+1
+				end
+				end
+
+			endfor
+
+			print, "Found total 5's and 7's : ", disc5, disc7
+
+			;output the bond image in the TIFF format.
+			saveimage, strmid(fs[i],0,strlen(fs[i])-4)+'bonds.tif',/tiff
+			;will use this for the overlaying of the images
+			bondsimg=readimage(0)
+
+
+;gofr g(r)
+		if (gofr eq 0) then begin
+			grsize=300 ; Size for the g(r) plot
+			grscan=10; grscan^2 is the number of averaged vertices
+			grplaces=fltarr(grscan^2); gives a bond in each of those squares
+			grsizereal=grsize+30;
+
+
+			grside=1.3*bondlength ;side of a square in which we are sure to capture at least one vertex
+
+			for gri=0,grscan-1 do begin
+			for grj=0,grscan-1 do begin
+				grindex=gri*grscan+grj
+				grxtemp=grsizereal+(!xss-2*grsizereal)*gri/grscan
+				grytemp=grsizereal+(!yss-2*grsizereal)*grj/grscan
+				grtemp=where((grxtemp gt !goodx) and (grytemp gt !goody) and (grxtemp lt !goodx+grside) and (grytemp lt !goody+grside))
+				grplaces[grindex]=grtemp[1]
+				print, "The x,y of the ", grindex ,"-th square are : ", grxtemp,grytemp
+				print, "The coords of the vertex in square ", grindex, " are ", !goodx[grplaces[grindex]],!goody[grplaces[grindex]]
+			endfor
+			endfor
+
+			gr=fltarr(grsize+1)
+			gind=findgen(grsize+1)
+			gind=!pi*((gind+1)^2-gind^2)
+			nscan=0
+
+			for i2=0,grscan^2-1 do begin
+
+				i1=grplaces[i2]
+				print, "Working on vertex ", i1, " x=",!goodx[i1], " y=", !goody[i1], "in square ", i2
+				for ivar=0,grsize do begin
+					closevert=(where((sqrt((!goodx-!goodx[i1])^2.0+(!goody-!goody[i1])^2.0) le ivar+1) and (sqrt((!goodx-!goodx[i1])^2.0+(!goody-!goody[i1])^2.0) gt ivar)))
+					if(closevert[0] ne -1) then begin
+						nvar=size(closevert)
+					end else begin
+						nvar=[0,0]
+					end
+					gr[ivar]=gr[ivar]+nvar[1]
+				endfor
+
+				nscan=nscan+1
+			endfor
+
+
+			window,10
+
+			fgr=areavertex*gr/(gind*nscan)
+			plot,(indgen(300))/bondlength,fgr-1
+
+
+
+			fgrplus=shift(fgr,1)
+			fgrminus=shift(fgr,-1)
+			fgr=fgr[1:*]
+			fgrplus=fgrplus[1:*]
+			fgrminus=fgrminus[1:*]
+			wheremaxfgr=where((fgr gt fgrplus) and (fgr gt fgrminus))+1
+
+			openw,u,strmid(fs[i],0,strlen(fs[i])-4)+'gofrpeaks.dat',/get_lun
+
+			for LongIndex=0L,n_elements(wheremaxfgr)-1 do begin
+				printf,u,wheremaxfgr[LongIndex]/bondlength,fgr[wheremaxfgr[LongIndex]-1]-1
+			endfor
+			free_lun,u
+			close,u
+
+
+
+
+			saveimage, strmid(fs[i],0,strlen(fs[i])-4)+'gofr.tif', /tiff
+
+	end
+;gofr   g(r)
+
+
+
+
+
+
+			bondsx=bondsx(0:bondcount-1)
+			bondsy=bondsy(0:bondcount-1)
+			bondsangle=bondsangle(0:bondcount-1)
+			print,'Found ', bondcount,' Delauney bonds'
+
+
+			triangulate, bondsx, bondsy, btriangles, boutermost, CONNECTIVITY = bedges
+			bcutoff=3*howmuch
+			;get an interpolated image of the bonds angles
+			bcosangle=trigrid(bondsx,bondsy,cos(6.0*bondsangle),btriangles, NX=(!xss+1),NY=(!yss+1))
+			bsinangle=trigrid(bondsx,bondsy,sin(6.0*bondsangle),btriangles, NX=(!xss+1),NY=(!yss+1))
+
+			; Do gaussian smoothing on the bond angle file
+			smoothbcosangle=fltarr(!xss+1,!yss+1)
+			smoothbsinangle=fltarr(!xss+1,!yss+1)
+			smooth,bcosangle, smoothbcosangle, weights, howmuch
+			smooth,bsinangle, smoothbsinangle, weights, howmuch
+
+			smoothbangle=!pi+atan(smoothbsinangle, smoothbcosangle)
+			smoothbangle=smoothbangle/6
+;			smoothbangle=smoothbangle-(!pi/3)*floor(smoothbangle*3/!pi)
+
+
+			print, 'Displaying smoothed bond angle...'
+			x=findgen(!xss+1)#replicate(1.,!yss+1)
+			y=replicate(1.,!xss+1)#findgen(!yss+1)
+;			smoothbangle1=interpolate(smoothbangle,x/4.0,y/4.0,/cubic)
+
+			image1=colortable(reverse(smoothbangle,2), fs[i],9)
+			showimage,image1,3,wbangle
+
+			saveimage, strmid(fs[i],0,strlen(fs[i])-4)+'angle.tif',/tiff
+
+			angimg=readimage(0)
+
+;			Now we have origimg, bondsimg, angimg to work with
+
+
+
+			newimg=origimg*.5+angimg*.5
+
+			if(keyword_set(unfilt)) then begin
+				newimg=(origimg*.5+origimgunfilt*.5)*.7+angimg*.3
+			end
+			;try,newimg
+
+
+
+
+			newred=reform(newimg[0,*,*])
+			newgreen=reform(newimg[1,*,*])
+			newblue=reform(newimg[2,*,*])
+			newbred=reform(bondsimg[0,*,*])
+			newbgreen=reform(bondsimg[1,*,*])
+			newbblue=reform(bondsimg[2,*,*])
+
+			whatbondstokeep=where((rgbcolor(newbred,newbgreen,newbblue) ne !colorwhite) and (rgbcolor(newbred,newbgreen,newbblue) ne !colorbond))
+			newred[whatbondstokeep]=newbred[whatbondstokeep]
+			newgreen[whatbondstokeep]=newbgreen[whatbondstokeep]
+			newblue[whatbondstokeep]=newbblue[whatbondstokeep]
+			showimage,[[[newred]],[[newgreen]],[[newblue]]],3,wcombined
+
+
+			saveimage,strmid(fs[i],0,strlen(fs[i])-4)+'all.tif', /TIFF
+;			nang=size(angimg)
+;			angimg1=fltarr(nang[2],nang[3],3)
+;			angimg1[*,*,0]=angimg[0,*,*]
+;			angimg1[*,*,1]=angimg[1,*,*]
+;			angimg1[*,*,2]=angimg[2,*,*]
+;			window,9
+;			tv, angimg1,true=3
+
+;			print,'Writing angle TIFF file'
+;			write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'smooth.tif',bytscl(smoothbangle,MAX= !pi/3,MIN=0)
+
+
+
+
+
+
+
+; ********		Calculating the bond-bond correlation function
+
+			fcorr=fltarr(floor(sqrt(!xss*!xss+!yss*!yss)))
+			ncorr=fltarr(floor(sqrt(!xss*!xss+!yss*!yss)))
+
+			dimplot1=800
+
+
+
+
+
+
+;brutecorr
+		if (Brutecorr eq 0) then begin
+			;Trying to do it directly...
+
+			multiplier=8
+			count=bondcount/multiplier
+
+			for iiii=1L,count-1 do begin
+				iii=iiii*multiplier
+				bondsd=floor(sqrt((bondsx(0:iii)-bondsx[iii])^2+(bondsy(0:iii)-bondsy[iii])^2))
+				bondscorr=cos(6.0*(bondsangle(0:iii)-bondsangle[iii]))
+
+				if ((iii mod 1000) eq 0) then begin
+					print, 'Working on bond #',iii
+					if (1 eq 0) then begin
+						index=where(ncorr)
+						restrict=where(index lt dimplot1)
+						index=index[restrict]
+						window,1,xsize=dimplot1+1,ysize=600
+						plot, index, fcorr[index]/ncorr[index], xtitle='pixels', ytitle='g6(r)',psym=0
+					endif
+				endif
+
+
+
+				for jjjj=0L,iiii do begin
+					jjj=jjjj*multiplier
+					fcorr[bondsd[jjj]]=fcorr[bondsd[jjj]]+bondscorr[jjj]
+					ncorr[bondsd[jjj]]=ncorr[bondsd[jjj]]+1
+				endfor
+			endfor
+		endif
+;brutecorr
+
+
+
+;ccorr
+		;********************
+	if (Ccorr eq 0) then begin
+
+		; Will spawn an external C program which does the robcor procedure very fast...
+		; First, need to write out the bonds angle file...
+		openw,u,'bonds.dat',/get_lun
+		sampling=16; The decimation rate in getting the bonds
+
+		printf,u,sampling
+
+		printf,u,bondcount
+
+		for iii=0L, bondcount-1 do begin
+			printf,u,bondsx[iii],bondsy[iii],bondsangle[iii]
+		endfor
+		free_lun,u
+
+		spawn, './robcor'
+
+		robcor=read_ascii('robcor.dat');
+
+		dcorr=transpose(robcor.field1[0,*])
+		ncorr=transpose(robcor.field1[2,*])
+		fcorr=transpose(robcor.field1[1,*])
+
+		dimplot=300
+
+
+		window,1,xsize=dimplot+1,ysize=dimplot
+		plot, dcorr(0:dimplot), fcorr(0:dimplot), xtitle='pixels', ytitle='g6(r)',psym=0
+
+		CorrelationLenghTest=abs(fcorr(0:dimplot)-exp(-1.0))
+		CorrelationLengthSeed=min(CorrelationLenghTest,Min_Subscript)
+		print,'The direct correlation length seed was ', Min_Subscript, ' .'
+
+		A=[.5,Min_Subscript]
+
+
+		dimfit=200;
+		minfit=20;
+		iter=0
+		chisq=0
+		yfit = curvefit(dcorr(minfit:dimfit), fcorr(minfit:dimfit), ncorr(minfit:dimfit), A, SIGMA_A, FUNCTION_NAME = 'funct', ITMAX=100, ITER=iter, chisq=chisq)
+		X=indgen(dimfit)
+		;plot out the determined function in a diffference color
+		;F = (EXP(-X/A[0]))
+		F = A[0]*(EXP(-X/A[1]))
+		oplot,F,psym=0, color=254
+		;blue equals 256*127
+
+
+		print,'The image translate correlation length was ', A[1],'+/-',Sigma_a[1],' and its coefficient was', A[0],'+/-',Sigma_a[0]
+		;print,'The imagetranslate correlation length was ', A[0],' and its coefficient was', ' N/A'
+		print,'It required ', iter , ' iterations, chisq=',chisq
+
+		print, 'Writing robcor file...'
+		openw,u,strmid(fs[i],0,strlen(fs[i])-4)+'robcor.dat',/get_lun
+
+		for LongIndex=0L,n_elements(ncorr)-1 do begin
+			printf,u,dcorr[LongIndex],fcorr[LongIndex], ncorr[LongIndex]
+		endfor
+		free_lun,u
+		close,u
+
+		Summary_of_Data[1,i]=A[1]
+	endif
+;ccorr
+
+
+;translatecorr
+		;******************** 	Trying to redo the autocorrelation by the image-displacement technique
+		if(translatecorr eq 0) then begin
+			f1corr=fltarr(500)
+			n1corr=fltarr(500)
+
+			maxcorr=40
+			for iii=-maxcorr, maxcorr do begin
+			print,iii+maxcorr, ' out of ', 2*maxcorr, ' steps performed'
+			for jjj=-maxcorr, maxcorr do begin
+				d=floor(sqrt(iii*iii+jjj*jjj))
+				banglemoved=shift(bangle,iii,jjj)
+
+				xstart=max([iii,0])
+				xend=min([255+iii,255])
+
+				ystart=max([jjj,0])
+				yend=min([255+jjj,255])
+
+				xyarea=1L*(yend-ystart+1)*(xend-xstart+1)
+
+				coscorr=cos(6*(bangle(xstart:xend,ystart:yend)-banglemoved(xstart:xend,ystart:yend)))
+				f1corr[d]=f1corr[d]+total(coscorr)
+				n1corr[d]=n1corr[d]+xyarea
+
+
+			endfor
+			endfor
+
+
+			dimplot=300
+
+			index=where(n1corr)
+			restrict=where(index lt dimplot)
+			index=index[restrict]
+			window,2,xsize=dimplot+1,ysize=dimplot
+			plot, index, f1corr[index]/n1corr[index], xtitle='pixels', ytitle='g6(r)',psym=0
+
+
+
+			CorrelationLenghTest=abs(f1corr[index]/n1corr[index]-exp(-1.0))
+			CorrelationLengthSeed=min(CorrelationLenghTest,Min_Subscript)
+			print,'The direct correlation length seed was ', Min_Subscript, ' .'
+
+			A=[.5,Min_Subscript]
+
+			dimfit=floor(maxcorr*sqrt(2))
+			restrict2=where(index lt dimfit)
+			index=index[restrict2]
+			restrict2=where(index gt 5)
+			index=index[restrict2]
+			iter=0
+			chisq=0
+			yfit = curvefit(index, f1corr[index]/n1corr[index], n1corr[index], A, SIGMA_A, FUNCTION_NAME = 'funct', ITMAX=100, ITER=iter, chisq=chisq)
+
+			X=indgen(dimfit)
+			;plot out the determined function in a diffference color
+			;F = (EXP(-X/A[0]))
+			F = A[0]*(EXP(-X/A[1]))
+			oplot,F,psym=0, color=254
+			;blue equals 256*127
+
+
+			print,'The image translate correlation length was ', A[1],'+/-',Sigma_a[1],' and its coefficient was', A[0],'+/-',Sigma_a[0]
+			;print,'The imagetranslate correlation length was ', A[0],' and its coefficient was', ' N/A'
+			print,'It required ', iter , ' iterations, chisq=',chisq
+
+			print, 'Writing robcor file...'
+			openw,u,strmid(fs[i],0,strlen(fs[i])-4)+'robcor.dat',/get_lun
+
+				for LongIndex=0L,dimfit-1 do begin
+				printf,u,LongIndex,f1corr[LongIndex]/n1corr[Longindex], n1corr[LongIndex]
+			endfor
+			free_lun,u
+			close,u
+
+
+			Summary_of_Data[1,i]=A[1]
+
+
+		endif
+;translatecorr
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+; From here on the code is modified from Chris' Stripes Code
+
+
+;ffcorr
+
+			!xss=255;
+			!yss=255;
+
+
+		if (ffcorr eq 0) then begin
+			;create the exp^6*imaginary*theta array
+			OrderParameter=complex(cos(6.0*smoothbangle),sin(6.0*smoothbangle))
+
+			;The autocorrelation I return is already shifted
+			DoAutoCorrelation,OrderParameter,RepeatSpacing,AutoCorrelation,IntensityArray,IntensityCountArray
+
+
+			;next we perform a curvefit, fit the function to y=a[0]*exp(-x/a[1])
+			;we set five parameters: the functions X array, Y array
+			;the weights W, and seed parameters a[0] (coefficient) and a[1] (correlation length)
+
+
+			CorrelationLenghTest=abs(IntensityArray(0:200)-exp(-1.0))
+			CorrelationLengthSeed=min(CorrelationLenghTest,Min_Subscript)
+			Nfit=5*Min_Subscript < 200
+			NFit=NFit > 10
+			start=0
+			Y=IntensityArray(start:Nfit)
+			X=findgen(Nfit-start+1)+start
+
+
+
+
+			print,'The correlation length seed was ', Min_Subscript, ' .'
+			;A=[1,Min_Subscript]
+			A=[Min_Subscript]
+			;OK, now call it
+			yfit = CURVEFIT(X, Y, W(start:Nfit), A, SIGMA_A, FUNCTION_NAME = 'funct1')
+			window,0, xsize=!xss+1, ysize=!yss+1
+			plot, IntensityArray(0:!xss), xtitle='pixels', ytitle='g2(r)',psym=0
+			;plot out the determined function in a different color
+			F = (EXP(-X/A[0]))
+			;F = A[0] * (EXP(-X/A[1]))
+			oplot, F,psym=0, color=254
+			;blue equals 256*127
+		 	print,'The correlation length was ', A[0],' and its coefficient was ', 'N/A','.'
+			;print,'The correlation length was ', A[1],' and its coefficient was ', A[0],'.'
+			;record the data in the array for summary
+			;Summary_of_Data[0,i]=A[1]
+			Summary_of_Data[1,i]=A[0]
+
+
+			;tv,bytscl(-255 * alog10( abs(AutoCorrelation))/Max(-alog10(abs(AutoCorrelation))))
+
+
+
+			;write the correlation function out
+
+			if (1 eq 0) then begin
+			openw,u,strmid(fs[i],0,strlen(fs[i])-4)+'robcor.dat',/get_lun
+			n=size(IntensityArray)
+			for LongIndex=0L,n(2)-1 do begin
+				printf,u,LongIndex,IntensityArray[LongIndex], IntensityCountArray[LongIndex]
+			endfor
+			free_lun,u
+			close,u
+ 			end
+			;window,5,xsize=2*!xss,ysize=2*!yss
+			;Slide_Image, bytscl(AutoCorrelation),SLIDE_WINDOW=MISCHA,group=g,FULL_WINDOW=8
+			;the below line destroys the Slide_image
+			;widget_control, g,/destroy
+		endif
+;ffcorr
+
+
+; From here on the code is taken from Anglecorr.pro, and the point is to do the direct
+; correlation on the image itself rather than on the fourier transform
+
+
+;direct
+	if (directcorr eq 0) then begin
+		pi=3.141592
+		dimplot=256
+		sampling=8 ; the size of the sampling square for direct correlations
+		dimfit=64 ; the size of the picture over which correlation function is fitted
+		fitcutoff=4
+
+		n=size(smoothbangle);
+		dim1=n(1)
+		dim2=n(2)
+		dim=ceil(dim1*sqrt(2))
+		corr=fltarr(dim)
+		pairs=fltarr(dim)
+		;help, corr
+
+		samplingdim1=dim1/sampling
+		samplingdim2=dim2/sampling
+		yvar1=0
+		yvar2=0
+
+		for j=1L,samplingdim1*samplingdim2-1 do begin
+			xvar1=sampling*(j mod samplingdim1)
+			yvar2=yvar1
+			yvar1=sampling*(j/samplingdim1)
+			;if yvar2 ne yvar1 then begin
+			;	print, 'Line # = ',yvar1
+			;endif
+			for k=0L,j do begin
+
+				xvar2=sampling*(k mod samplingdim1)
+				yvar2=sampling*(k/samplingdim1)
+				d=round(sqrt((xvar1-xvar2)*(xvar1-xvar2)+(yvar1-yvar2)*(yvar1-yvar2)))
+				;print, 'd=',d
+				corr[d]=corr[d]+cos(6*(smoothbangle[xvar1,yvar1]-smoothbangle[xvar2,yvar2]))
+				pairs[d]=pairs[d]+1;
+			endfor
+		endfor
+
+		for j=0L,dim-1 do begin
+			if pairs[j] ne 0 then begin
+				corr[j]=corr[j]/pairs[j]
+			endif
+		endfor
+
+		CorrelationLenghTest=abs(corr-exp(-1.0))
+		CorrelationLengthSeed=min(CorrelationLenghTest,Min_Subscript)
+		print,'The direct correlation length seed was ', Min_Subscript, ' .'
+
+		A=[1,Min_Subscript]
+		;A=[Min_Subscript]
+
+
+
+		;window,0,xsize=dim1/2+50,ysize=dim2/2+50
+		;tvscl,angle,25,25
+
+		index=where(pairs)
+		restrict=where(index lt dimplot)
+		index=index[restrict]
+
+
+		window,1,xsize=dimplot+1,ysize=dimplot+1
+		plot, index, corr[index], xtitle='pixels', ytitle='g6(r)',psym=0
+
+		restrict2=where((index lt dimfit) and (index gt fitcutoff))
+		index=index[restrict2]
+		yfit = curvefit(index, corr[index], pairs[index], A, SIGMA_A, FUNCTION_NAME = 'funct')
+
+		yfit = curvefit(index, corr[index], pairs[index], A, SIGMA_A, FUNCTION_NAME = 'funct', ITMAX=100, ITER=iter, chisq=chisq)
+
+
+
+		X=indgen(dimplot)
+		;plot out the determined function in a diffference color
+		;F = (EXP(-X/A[0]))
+		F = A[0]*(EXP(-X/A[1]))
+		oplot,F,psym=0, color=254
+		;blue equals 256*127
+
+		print,'The direct correlation length was ', A[1],' and its coefficient was', A[0],' iter=',iter,' chisq=',chisq
+		;print,'The direct correlation length was ', A[0],' and its coefficient was', ' N/A'
+		Summary_of_Data[2,i]=A[1]
+
+	endif
+;direct
+
+			print, 'All done with ',fs[i],'.'
+
+			if (keyword_set(wait)) then begin
+				; to give you time to examine the images
+				wait,5
+			endif
+
+
+			if (keyword_set(stay) eq 0) then begin
+				; destroy all the windows created
+				widget_control,wbangle,/destroy
+				widget_control,wbonds,/destroy
+				widget_control,wcombined,/destroy
+				widget_control,wimage,/destroy
+				if (keyword_set(unfilt)) then begin
+					widget_control,wimageunfilt,/destroy
+				end
+
+			endif
+
+		endfor ; main loop that reads each input file
+; MASTER LOOP ENDS
+
+
+
+
+		; output all data into the summary file
+		openw,u,strmid(fs[0],0,strlen(fs[0])-4)+'summary.dat',/get_lun
+		for LongIndex=0L, n_elements(fs)-1 do begin
+			printf,u,Summary_of_Data[0,LongIndex],Summary_of_Data[1,LongIndex],Summary_of_Data[2,LongIndex],Summary_of_Data[3,LongIndex]," ",fs[LongIndex]
+		endfor
+		free_lun,u
+
+
+end

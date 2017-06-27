@@ -1,0 +1,1054 @@
+
+function fourier_bpass,data,dominant_radius
+
+;data=data(48:48+511,80:80+511)  probably test code.
+n=size(data) & n=n(1:n(0))
+;print,n
+window,0,xsize=n(0)+140,ysize=n(1)+140
+plot,[0],[0],/nodata,xrange=[0,n(0)],yrange=[0,n(1)],xstyle=1,ystyle=1,position=[100,100,100+n(0),100+n(1)],/device
+tvscl,data,100,100
+
+
+f=shift(fft(data),n(0)/2,n(1)/2)
+;window,4,xsize=n(0)+140,ysize=n(1)+140
+;tvscl,alog(abs(f)),100,100 & tv,bytscl(congrid(abs(f),n(0)/8,n(1)/8),max=2),100,100
+
+ns=max(n)/2 & nphi=floor(2*!pi*ns)
+;ns=max(n) & nphi=floor(2*!pi*ns)
+ds=1./ns
+s=ds*findgen(ns)#replicate(1,nphi)
+phi=replicate(1.,ns)#(findgen(nphi)*2*!pi/nphi)
+x=s*cos(phi)*n(0)+n(0)/2
+y=s*sin(phi)*n(1)+n(1)/2
+phi = 1
+fa = abs(f)
+;sf=bilinear(f,x,y) ;& sff=sf
+sf=bilinear(fa,x,y) ;& sff=sf
+sf=total(sf^2,2,/double)/nphi & s=s(*,0)
+window,8
+;s[1] = 0
+
+plot,2*!pi*s,s*sf,psym=-4,symsiz=0.3
+
+tmp=max(s*sf,w)
+r=1./s(w)
+print,'Radius (max):        ',r,' pixels'
+dominant_radius = r
+;These next four lines appear to be trying to get the width at half height of the peak.
+;Doesn't appear to be working. At any rate, I'll use r for the filter anyway.
+;w=where((s*sf) gt tmp/2.)
+;rh=1./(total(s(w))/n_elements(w))
+;print,'Radius (halfheight): ',r,' pixels'
+;oplot,[1/rh],[tmp/2.],psym=4
+
+x=(findgen(n(0))-n(0)/2.)#replicate(1.,n(1))
+y=replicate(1.,n(0))#(findgen(n(1))-n(1)/2.)
+q=sqrt((x/n(0))^2+(y/n(1))^2)
+q0=1./r
+perc=0.35
+msk=(q gt (1-perc)*q0) and (q lt (1+perc)*q0)
+msk=(q gt (1-perc)*q0) and (q lt q0/(1-perc))
+;wset,4 & wshow,4
+;tvscl,abs(f)*msk,100,100
+
+filtdata=float(fft(shift(msk*f,-n(0)/2,-n(1)/2),/inverse))
+window,9
+wset,9 & wshow,9
+tvscl,filtdata,100,100
+;print,filtdata[0:10,0:10]
+return,filtdata
+end
+
+pro function_of_average_profile,indep,params,F
+  common shared_profile, scale_factor, profile
+  common shared_xypoints, xpoints, ypoints
+
+  x0=params[0]
+  y0=params[1]
+  iw=params[2]
+  A=params[3]
+  C=params[4]
+
+  dx = xpoints-x0
+  dy = ypoints-y0
+  iw2 = iw^2
+  r2=dy^2 + dx^2
+  r = sqrt(r2)
+  scaled_r = (r*iw * scale_factor) + 2
+  F = A * interpolate(profile,scaled_r,cubic=-0.5) + C
+
+end
+
+
+pro sigmoid_2d_pro_faster,indep,params,F,dfda  ;written according to how it's required for "curvefit"
+  common shared_xypoints, xpoints, ypoints
+;  outbound=fltarr(6); return goodie box!
+  dfda=fltARR(N_ELEMENTS(indep),5,/nozero)
+
+;sigmoid_2d_pro,indep,params,F,dfda
+;print,"slow:"
+;slow_f = f
+;slow_dfda = dfda
+;print, dfda
+
+
+;print,"indep, x,y are",indep,x,y
+;print,"indep, x,y are"
+;print,indep
+;print,x,y
+
+  x0=params[0]
+  y0=params[1]
+  iw=params[2]
+  A=params[3]
+  C=params[4]
+;print,x0,y0,w,A,C
+
+;  x=xpoints[indep]
+;  y=ypoints[indep]
+;  dx = x-x0
+;  dy = y-y0
+
+  ;dx = xpoints[indep]-x0
+  ;dy = ypoints[indep]-y0
+  dx = xpoints-x0
+  dy = ypoints-y0
+  ;iw = 1/w
+  iw2 = iw^2
+  r2=dy^2 + dx^2
+  r2iw2 = r2*iw2
+  exp_mrw2= exp(-r2iw2)
+  Aexp_mrw2= A*exp_mrw2
+;  dfda[0] = A*exp(-(r/w)^p) + C                          ;function
+;  dfda[1] = A*exp(-(r/w)^p)*p*(x-x0)*(r/w)^(p-1)         ;d/dx0
+;  dfda[2] = A*exp(-(r/w)^p)*p*(y-y0)*(r/w)^(p-1)         ;d/dy0
+;  dfda[3] = (A*exp(-(r/w)^p)*p*r     *(r/w)^(p-1))/w^2   ;d/dw
+;  dfda[4] = exp(-(r/w)^p)                                ;d/dA
+
+  ;this is same as above, but optimized for speed.
+  f = Aexp_mrw2 + C                          ;function
+  two_Aexp_mrw2_iw2 = 2.0 * Aexp_mrw2*iw2
+;  print,"from fast:",Aexp_mrw2
+  dfda[0,0] = two_Aexp_mrw2_iw2 * dx        ;d/dx0
+  dfda[0,1] = two_Aexp_mrw2_iw2 * dy        ;d/dy0
+;  dfda[0,2] = 2*Aexp_mrw2 * r2iw2 *iw       ;d/dw
+  dfda[0,2] = -2.0*Aexp_mrw2 * r2 *iw       ;d/diw
+  dfda[0,3] = exp_mrw2                                ;d/dA
+  dfda[*,4] = 1.0                                          ;d/dC
+
+;print,"fast:"
+;print, dfda
+;print,"differences:"
+;print, slow_dfda-dfda
+
+
+  return
+end
+
+
+function make_test_image ;
+xarr_size = 4096
+yarr_size = 4096
+base_period = 5*(1.0 + 1.0/(xarr_size-20))
+;base_period = 4.1D
+;base_period = 5.01
+amplitude = 80
+offset = 128
+noise_amplitude_multiplier = 0.15
+angle = 0.148
+angle_radians = angle * 2*!PI/360
+angle_radians = atan(1.0 / (yarr_size-20))
+;angle_radians = atan(1.0 / (yarr_size-20)) / 2.0
+;angle_radians = 0.0D
+
+int_im = indgen(xarr_size,yarr_size,/LONG)
+com_im = complex((int_im mod xarr_size),(int_im / xarr_size))
+
+;k1 = complex(1.0,0.0)*(2*!PI)/period
+;k2 = complex(cos(!PI/3),sin(!PI/3))*(2*!PI)/period
+;k3 = complex(cos(!PI/3),-sin(!PI/3))*(2*!PI)/period
+
+;a=[0.0,  1,  0,  -0.333333,  0,  0.200000,  0,  -0.142857,  0,  0.111111,  0,  -0.0909091,  0]
+a=[0.0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0.,  0]
+
+w1=fltarr(xarr_size,yarr_size)
+w2=fltarr(xarr_size,yarr_size)
+w3=fltarr(xarr_size,yarr_size)
+
+t1 = angle_radians
+t2 = !PI/3 + angle_radians
+t3 = -!PI/3 + angle_radians
+
+for h = 1, 1 do begin
+  period = base_period / h
+  k1 = complex(1.0,0.0)*(2*!PI)/period
+  k2 = complex(cos(!PI/3),sin(!PI/3))*(2*!DPI)/period
+  k3 = complex(cos(!PI/3),-sin(!PI/3))*(2*!DPI)/period
+  k1 = complex(cos(t1),sin(t1))*(2*!PI)/period
+  k2 = complex(cos(t2),sin(t2))*(2*!PI)/period
+  k3 = complex(cos(t3),sin(t3))*(2*!PI)/period
+  w1 += a[h] * (cos(real_part(k1*conj(com_im)))+1) / 2
+  w2 += a[h] * (cos(real_part(k2*conj(com_im)))+1) / 2
+  w3 += a[h] * (cos(real_part(k3*conj(com_im)))+1) / 2
+endfor
+
+im = w1 * w2 * w3
+
+;im = fix(((im*2-1)*amplitude)+offset)
+im = ((im)*amplitude)+offset
+im += (randomu(1,xarr_size,yarr_size) - 0.5 ) * 2 * amplitude * noise_amplitude_multiplier
+return,float(im)
+;return,fix(im)
+;return,im
+end
+
+
+function make_test_image_gaussian
+xarr_size = 106
+yarr_size = 106
+gauss_width = 2.1
+amplitude = 80
+offset = 128
+noise_amplitude_multiplier = 0.00
+
+feat_r = 6
+
+int_im = indgen(2*feat_r,2*feat_r,/LONG)
+com_im = complex((int_im mod (2*feat_r)),(int_im / (2*feat_r)))
+com_im -= complex(feat_r,feat_r)
+
+im=fltarr(xarr_size,yarr_size)
+
+for i=0,9 do begin
+    for j=0,9 do begin
+    r = com_im + complex(0.1*i,0.1*j)
+        g = exp(-(abs(r)/gauss_width)^8)
+        im[10*i,10*j] += g
+        endfor
+    endfor
+
+im = ((im)*amplitude)+offset
+im += (randomu(1,xarr_size,yarr_size) - 0.5 ) * 2 * amplitude * noise_amplitude_multiplier
+;return,fix(im)
+return,im
+end
+
+
+function get_initial_xy, image,radius
+    filtered_image=fourier_bpass(image,radius)
+;    filtered_image=image
+    ;window,2
+    ;tv,filtered_image
+    ;print,filtered_image[0:8,0:8]
+
+    localmax = ((filtered_image ge shift(filtered_image,1,0)) and  $
+              (filtered_image ge shift(filtered_image,-1, 0)) and $
+              (filtered_image ge shift(filtered_image, 0, 1)) and $
+              (filtered_image ge shift(filtered_image, 0,-1)) and $
+              (filtered_image ge shift(filtered_image,-1,-1)) and $
+              (filtered_image ge shift(filtered_image,-1, 1)) and $
+              (filtered_image ge shift(filtered_image, 1,-1)) and $
+              (filtered_image ge shift(filtered_image, 1, 1)))
+    window,3
+    tv,bytscl(localmax)
+    where_max = where(localmax)
+    ;return,where_max
+    x_size = (size(image))[1]
+    return_value = transpose(float([[where_max MOD x_size],[where_max / x_size]]))
+    return,return_value
+end
+
+pro build_average_profile_scaled,image,feat_dat, max_radius
+    common shared_profile, scale_factor, profile
+    ;This function looks at existing data on features, and builds up an "Average profile" of the features as a function of distance from the center.
+    ;Actually, the data is scaled by the width parameter, a[2].
+    ;The profile is stored in the common block  "shared_profile"
+    ;The average (scaled) profile will be used to generate arbitrary function values, by interpolation.
+
+    scale_factor = 5 ;this is how many points per pixel are stored.
+    average_width = median(feat_dat[2,*])
+
+    x_size = (size(image))[1]
+    y_size = (size(image))[2]
+    num_features = (size(feat_dat))[2]
+    area_per_feature = x_size*y_size / num_features
+;    profile_size = sqrt(area_per_feature)  ;NEED to adjust this?
+    profile_size = float(max_radius)
+    profile_array_size = ceil(2*profile_size*scale_factor)
+
+    profile=dblarr(profile_array_size)
+    count=lon64arr(profile_array_size)
+    r_array = indgen(profile_array_size,/float) / scale_factor
+
+    for n = 0L, (num_features) - 1 do begin
+;    for n = 138,138 do begin
+       x = feat_dat[0,n]
+       y = feat_dat[1,n]
+;print,n,x,y,image[x,y]
+       ; NOTE: there's probably a faster way to do this than these nested for loops
+       for i = round(x - profile_size), round(x + profile_size) do begin
+         for  j = round(y - profile_size), round(y + profile_size) do begin
+            if (i ge 0) and (i lt x_size) and (j ge 0) and (j lt y_size) then begin
+                r = sqrt((x-i)^2+(y-j)^2)
+                ;scale r by width of individual feature:
+                ;r  /= average_width * feat_dat[2,n]
+                r  *=  feat_dat[2,n] / average_width
+                index = round(r*scale_factor) ; check this, around r = 0
+;print,n,i,j,r,index,image[i,j]
+          if (index lt profile_array_size) then begin
+                    profile[index] += (image[i,j] - feat_dat[4,n] ) / feat_dat[3,n]
+;profile[index] = (profile[index] - feat_dat[3,n] ) / feat_dat[4,n]
+                    count[index] += 1
+                endif
+            endif
+         endfor ;for j
+       endfor   ;for i
+    endfor ; for n
+    missing_r = where((count eq 0),number_of_missing_r)
+    if (number_of_missing_r NE 0) then r_array_missing = r_array[where(count eq 0)]
+    profile_nonzero = profile[where(count gt 0)] / count[where(count gt 0)]
+    r_array_nonzero = r_array[where(count gt 0)]
+
+
+    ; next, we have to take care of missing data.
+    if (count[0] gt 0) then begin
+        profile = [profile_nonzero[2],profile_nonzero[1],profile_nonzero]
+        r_array = [-r_array_nonzero[2],-r_array_nonzero[1],r_array_nonzero]
+    endif else begin
+        profile = [profile_nonzero[1],profile_nonzero[0],profile_nonzero]
+        r_array = [-r_array_nonzero[1],-r_array_nonzero[0],r_array_nonzero]
+    endelse
+    if (number_of_missing_r GT 0) then begin
+        estimated_vals = interpol(profile,r_array,r_array_missing,/spline)
+        r_array = [r_array,r_array_missing]
+        profile = [profile,estimated_vals]
+    endif
+    correct_order = sort(r_array)
+    profile = profile[correct_order]
+    r_array  = r_array[correct_order]
+    ;profile = float(profile)
+
+    window,10
+    plot,r_array,profile,yrange=[-1,2]
+end
+
+function build_average_profile,image,xy,dominant_length
+
+    scale_factor = 4
+
+    x_size = (size(image))[1]
+    y_size = (size(image))[2]
+    num_features = (size(xy))[2]
+;    area_per_feature = x_size*y_size / num_features
+;    profile_size = sqrt(area_per_feature)
+    profile_size = dominant_length
+
+    profile=fltarr(2*profile_size*scale_factor)
+    count=lon64arr(2*profile_size*scale_factor)
+    r_array = indgen(2*profile_size*scale_factor,/float) / scale_factor
+
+    for n = 0L, (num_features) - 1 do begin
+;    for n = 138,138 do begin
+       x = xy[0,n]
+       y = xy[1,n]
+;print,n,x,y,image[x,y]
+       for i = round(x - profile_size), round(x + profile_size) do begin
+         for  j = round(y - profile_size), round(y + profile_size) do begin
+            if (i ge 0) and (i lt x_size) and (j ge 0) and (j lt y_size) then begin
+                r = sqrt((x-i)^2+(y-j)^2)
+                index = round(r*scale_factor)
+;print,n,i,j,r,index,image[i,j]
+                profile[index] += image[i,j]
+                count[index] += 1
+            endif
+         endfor
+       endfor
+    endfor
+    profile /= count
+    profile = profile[where(count gt 0)]
+
+    r_array = r_array[where(count gt 0)]
+
+;    sigma = 1.0 / sqrt(count[where(count gt 0)])  ;use this definition for weights in lmfit
+    sigma = float(count[where(count gt 0)]) ;use this definition if using curvefit
+
+   local_mins = where((profile le shift(profile,-1)) and (profile le shift(profile,1)))
+    tmp = min( abs(r_array[local_mins] - dominant_length/2.0), nearest_min_idx)
+    nearest_min = local_mins[nearest_min_idx]
+
+    first_local_min = local_mins[0]
+    first_local_min = max([first_local_min,2])
+
+    full_return_value = [[r_array],[profile],[sigma]]
+    return_value = full_return_value[0:nearest_min,*]
+
+    ;plot,profile
+    return,return_value
+end
+
+pro weed_out_bad_points, image,feature_data
+
+    limits = [[0.0                            ,(size(image))[1]                 ],$  ;x coordinate
+              [0.0                            ,(size(image))[2]                 ],$  ;y coordinate
+              [0.5 * median(feature_data[2,*]),  3.0 * median(feature_data[2,*])],$  ;width
+              [0.2 * median(feature_data[3,*]), 10.0 * median(feature_data[3,*])],$  ;amplitude parameter
+              [0.2 * median(feature_data[4,*]), 10.0 * median(feature_data[4,*])],$  ;offset parameter
+              [0.0 * median(feature_data[5,*]), 10.0 * median(feature_data[5,*])]]   ;chi squared parameter
+
+    for i = 0,5 do begin
+        w1 = where(feature_data[i,*] lt limits[0,i],w1_count)
+        w2 = where(feature_data[i,*] gt limits[1,i],w2_count)
+;       print,'deleting: lt',i
+       if (w1_count gt 0) then begin
+            feature_data[6,w1]=0
+;            print,feature_data[*,w1]
+            endif
+       print,'deleting: gt',i
+       if (w2_count gt 0) then begin
+            feature_data[6,w2]=0
+;            print,feature_data[*,w2]
+            endif
+        endfor
+    w3 = where(feature_data[6,*] gt 0.5, w3_count)
+    if (w3_count gt 0) then begin
+;        print,'deleted all of the following'
+;        print,feature_data[*,w3]
+        feature_data=feature_data[*,w3]
+        endif
+;    print,'kept all of the following'
+;    print,feature_data
+
+end
+
+pro remove_duplicates,f,dominant_length
+    tolerance = 0.2 * dominant_length
+    ;first, sort the array, by y, which it already mostly is.
+    f[0,0] = f[*,sort(f[1,*])]
+
+    N = (size(f))[2]
+    for i = 0L, N-1 do begin
+       j_limit = f[1,i] + tolerance
+       for j = i+1,N-1 do begin
+         ;print,i,j
+         if (f[1,j] gt j_limit) then break ; if j coordinate is 2 away, no need to go any further.
+         r2 = (f[0,i]-f[0,j])^2 + (f[1,i]-f[1,j])^2
+         if r2 lt tolerance then begin
+            if f[5,i] gt f[5,j] then begin
+               f[6,j] = 0.0
+               ;print,'removing ',j
+            endif else begin
+               f[6,i]=0.0
+               ;print,'removing ',i
+               break
+            endelse
+         endif
+         endfor ;j
+       endfor ;i
+    w3 = where(f[6,*] gt 0.5, w3_count)
+    if (w3_count gt 0) then begin
+;        print,'deleted all of the following'
+ ;       print,transpose(feature_data[*,w3])
+        f=f[*,w3]
+        endif
+;    print,'kept all of the following'
+;    print,f
+end
+
+
+pro show_locations_clean_version,image,feature_data
+    xsize = (size(image))[1]
+    ysize = (size(image))[2]
+    scale_factor = 512.0 / max([xsize,ysize])
+    x_values = reform(feature_data[0,*]) * scale_factor
+    y_values = reform(feature_data[1,*]) * scale_factor
+    ;plot,x_values,y_values,COLOR=128,psym=6
+    window,5,xsize=512+140,ysize=512+140
+
+    plot,[0],[0],/nodata,xrange=[0,512],yrange=[0,512],xstyle=1,ystyle=1,position=[100,100,100+512,100+512],/device
+    tv,congrid(image,512,512),100,100
+
+    oplot,x_values,y_values,COLOR=128,psym=3,thick=2
+
+    return
+end
+
+pro show_locations,image,feature_data
+    xsize = (size(image))[1]
+    ysize = (size(image))[2]
+    scale_factor = 512.0 / max([xsize,ysize])
+    x_values = reform(feature_data[0,*]) * scale_factor
+    y_values = reform(feature_data[1,*]) * scale_factor
+;debug version below:
+;    x_values = reform(feature_data[0,*]) - 4000
+;    y_values = reform(feature_data[1,*]) - 4000 * 1
+    ;plot,x_values,y_values,COLOR=128,psym=6
+    window,5,xsize=512+140,ysize=512+140
+
+    plot,[0],[0],/nodata,xrange=[0,512],yrange=[0,512],xstyle=1,ystyle=1,position=[100,100,100+512,100+512],/device
+    tv,congrid(image,512,512),100,100
+
+    oplot,x_values,y_values,COLOR=128,psym=3,thick=2
+
+    return
+end
+
+
+pro find_features, image
+    xy_data = get_initial_xy(image,dominant_length)
+
+xy_data = xy_data[*,where((xy_data[1,*] gt 4000) and (xy_data[0,*] gt 4000) and (xy_data[0,*] lt 5000))]
+
+
+;image = rebin(image,8192,8192)
+;dominant_length *= 2
+;xy_data *= 2
+
+;dominant_length = 6.0
+
+    feature_data = dblarr(7,(size(xy_data))[2])
+    feature_data[0,0]=xy_data
+    feature_data[2,*]=1/(dominant_length / 4.0)
+    ;feature_data[2,*]=dominant_length / 4.0
+    feature_data[3,*]=stddev(image) * 4
+    feature_data[4,*]=mean(image) - stddev(image)
+
+;    feature_data[2,*]=0.51
+;    feature_data[3,*]=60
+;    feature_data[4,*]=127.9
+
+
+    for i=1,2 do begin
+      print,"average a[2:4] is :",mean(feature_data[2,*]),mean(feature_data[3,*]),mean(feature_data[4,*])
+       show_locations,image,feature_data
+
+       ;print,'refining'
+;        refine10,image,feature_data,dominant_length/2.0
+       if (i eq 1) then begin
+            refine10,image,feature_data,dominant_length / 2.0
+        endif else begin
+            build_average_profile_scaled,image,feature_data,dominant_length
+            if (i eq 2) then begin
+               feature_data[2,*] /= mean(feature_data[2,*])
+            endif
+            refine10_average_profile,image,feature_data,dominant_length / 2.0
+        endelse
+
+       ;print,'done refining'
+        weed_out_bad_points,image,feature_data
+       show_locations,image,feature_data
+       graph_errors,feature_data[0,*]
+       print, 'program "find_features" has located: ',(size(feature_data))[2], ' points.'
+
+;    remove_duplicates,feature_data,dominant_length
+
+
+;take away the parts too close to the edges
+;change these BACK TO 10
+minx = 0;min(feature_data[0,*]) + 10
+miny = 0;min(feature_data[1,*]) + 10
+maxx = 10000;max(feature_data[0,*]) - 10
+maxy = 10000;max(feature_data[1,*]) - 10
+
+w4 = where((feature_data[0,*] gt minx) and (feature_data[1,*] gt miny) and (feature_data[0,*] lt maxx) and (feature_data[1,*] lt maxy),w4_count)
+    if (w4_count gt 0) then begin
+        feature_data_hist=feature_data[*,w4]
+        endif
+
+
+hist_data = reform(feature_data_hist[0,*]-floor(feature_data_hist[0,*]))
+xbins = histogram(hist_data,min=0,binsize=0.02)
+window,6
+plot, xbins
+oplot,histogram(feature_data_hist[1,*]-floor(feature_data_hist[1,*]),min=0,binsize=0.02),color=128
+endfor
+
+print,"hist_data summary:"
+
+dummy = where((hist_data lt 0.25) or (hist_data gt 0.75),integer_count)
+dummy = where((hist_data lt 0.75) and (hist_data gt 0.25),half_integer_count)
+
+print,"near integer:",integer_count
+print,"near half-integer:",half_integer_count
+print,"discrepancy:",integer_count-half_integer_count
+print,"expected:",sqrt(integer_count)
+
+
+;    print,'kept all of the following'
+;    print,feature_data[*,200:600]
+
+print, 'program "find_features" has located: ',(size(feature_data))[2], ' points.'
+end
+
+pro graph_errors,vals
+
+;x = -floor(vals) + floor(vals*10)/10.0
+;y = -(round(vals*10) - vals*10)/10.0
+x = (round(vals*10)/10.0) - floor(round(vals*10)/10.0)
+y = (vals*10-round(vals*10))/10.0
+window,7
+plot,x,y,psym=7,xrange=[0,1]
+print,"pixel bias:", mean(y[where(x ge 0.5)])
+end
+
+
+pro circle_areas,x0_in,y0_in,r,out_area
+;this procedure calculates the fraction of each pixel covered by a circle of radius r centered at (x,y)
+x0 = x0_in + 0.5
+y0 = y0_in + 0.5
+do_graphs = 0
+;given a circle, return the region centered around it with fractional areas covered.
+;first, find all y intersection points
+;out_area_size = 2*r+1
+;out_area  = fltarr(out_area_size,out_area_size)
+y1 = findgen(floor(y0+r) - ceil(y0-r)+1) + ceil(y0-r)
+r2my2 = r^2 - (y1-y0)^2
+w_r2my2 = where(r2my2 lt 0.0,wcount)
+if wcount ne 0 then r2my2[w_r2my2]=0.0  ;this is necessary because rounding error sometimes makes r^2 - x^2 < 0.0
+x1 = x0+sqrt(r2my2)
+x2 = x0-sqrt(r2my2)
+
+;now find all x intersection points
+x3 = findgen(floor(x0+r) - ceil(x0-r)+1) + ceil(x0-r)
+r2mx2 = r^2 - (x3-x0)^2
+w_r2mx2 = where(r2mx2 lt 0.0,wcount)
+if wcount ne 0 then r2mx2[w_r2mx2]=0.0
+y3 = y0+sqrt(r2mx2)
+y4 = y0-sqrt(r2mx2)
+
+x = [x1,x2,x3,x3,x0-r,x0+r]
+y = [y1,y1,y3,y4,y0,y0]
+theta = atan(y-y0,x-x0)
+order = sort(-theta)
+theta = theta[order]
+x = x[order]
+y = y[order]
+x = [x,x[0]] ; make a copy of the first element at the end.
+y = [y,y[0]]
+theta = [theta,theta[0]]
+
+r2mx2 = r^2-(x-x0)^2
+w_r2mx2 = where(r2mx2 lt 0.0,wcount)
+if wcount ne 0 then r2mx2[w_r2mx2]=0.0  ;this is necessary because rounding error sometimes makes r^2 - x^2 < 0.0
+;asinxmx0r = asin((x-x0)/r)
+asinxmx0r = -abs(theta) + (!PI / 2.0)  ;this is an interesting fix to a bug. asin(x-x0/r) can fail when rounding
+;error makes the argument of asin greater than 1.  Since I have the angle anyway (from x and y), this is a better way to do it.
+
+;print,asin((x-x0)/r),asinxmx0r
+integral = 0.5*((x-x0)*sqrt(r2mx2) + r^2 * asinxmx0r)
+;integral = 0.5*((x-x0)*sqrt(r^2-(x-x0)^2) );+ r^2 * asin((x-x0)/r))
+area = shift(integral,-1) - integral
+dx = shift(x,-1) - x
+miny = y
+wmin = where(shift(y,-1) lt y)
+miny[wmin] = (shift(y,-1))[wmin]
+;print,x[0:14],y[0:14],integral[0:14],area[0:14],dx[0:14],theta
+;print,x,y,integral,area,dx,theta
+
+out_indices_x = floor(x)-floor(x0-r)
+out_indices_y = floor(miny)-floor(y0-r)
+
+;print,out_indices_x,out_indices_y
+if (do_graphs gt 0) then begin
+  plot,x,y,psym=7,xticklen=1,yticklen=1,xrange=[0,10],yrange=[0,10],xTICKINTERVAL= 1,yTICKINTERVAL= 1
+  endif
+
+;out_area = fltarr(10,10)
+;for i=0,(size(x))[1]-2 do begin
+;for i=0,9 do begin
+i=0
+while(theta[i] gt 0) do begin
+  xi = floor(x[i])
+  top_yi = ceil(max([y[i],y[i+1]]))-1
+  bott_yi = floor(y0)
+
+  ;bottom part
+  if (top_yi gt bott_yi) then begin
+     ;out_area[xi,bott_yi] += dx[i]*(ceil(y0)-y0)
+     out_area[xi,bott_yi] += dx[i]*(floor(y0)+1-y0)
+;     print,"bottom: ", i,x[i],y[i],xi,bott_yi
+     endif
+
+  ;middle part
+  for yi = bott_yi + 1,top_yi -1 do begin
+    out_area[xi,yi] += dx[i]
+;    print,"middle: ",i,x[i],y[i],xi,yi
+    endfor ;yi
+
+  ;top part:
+  base_height = max([(top_yi - y0),0])
+  out_area[xi,top_yi] += area[i] - dx[i]*base_height
+;  print,"top:    ",i,x[i],y[i],xi,top_yi," base_height =",base_height,out_area[xi,top_yi]
+  ;print," "
+  i+=1
+  endwhile
+;print,"area calculated so far: ", total(out_area)
+;print,"what I should have calculated: ", !PI*0.5*r^2
+
+;Next, do the bottom part of the circle.
+;I'm keeping the variable names "top" and "bottom" the same here, even though "top" is below bottom now.
+;print,"NOW DOING THE BOTTOM"
+
+while(i lt (size(x))[1] - 1) do begin
+;while(1000 lt (size(x))[1] - 1) do begin
+  xi = floor(x[i+1])
+  top_yi = floor(min([y[i],y[i+1]]))
+  bott_yi = floor(y0)
+
+  ;bottom part
+  if (top_yi lt bott_yi) then begin
+     out_area[xi,bott_yi] += dx[i]*(floor(y0)-y0)
+;     print,"bottom: ", i,x[i],y[i],xi,bott_yi,dx[i],out_area[xi,bott_yi]
+     endif
+
+  ;middle part
+  for yi = bott_yi - 1,top_yi +1,-1 do begin
+    out_area[xi,yi] += - dx[i]
+;    print,"middle: ",i,x[i],y[i],xi,yi,dx[i]
+    endfor ;yi
+
+  ;top part:
+  base_height = max([(y0-top_yi-1),0])
+;  print,"top:    ",i,x[i],y[i],xi,top_yi," base_height =",base_height
+  out_area[xi,top_yi] += - area[i] + dx[i]*base_height
+;  print," "
+  i+=1
+  endwhile
+  ;endfor ;i
+
+;print,"final area calculated : ", total(out_area)
+;print,"what I should have calculated: ", !PI*r^2
+
+delta = total(out_area) / (!PI*r^2) - 1.0
+;print,delta
+
+if not(abs(delta) lt .001) then begin
+  print,"WARNING: PROBLEM IN CIRCLE AREAS"
+  print, x0,y0,r,total(out_area),!PI*r^2,delta
+  endif
+
+;for i= 0,15 do begin
+;  xi = out_indices_x[i]
+;  yi = out_indices_y[i]
+;  print,xi,yi
+;  out_area[out_indices_x[i],out_indices_y[i]] += area[i] - dx[i]*(miny[i] - y0)
+;  for j = yi-1, floor(y0)-floor(y0-r)+1,-1 do begin
+;    out_area[xi,j] += dx[i]
+;  endfor
+;  if out_indices_y[i] gt floor(y0)-floor(y0-r) then begin
+;    out_area[xi,floor(y0)-floor(y0-r)] += dx[i] * (1. - y0 + floor(y0))
+;  endif
+
+
+if (do_graphs) then begin
+    graph_size = (size(out_area))[1]
+    for ii=0,graph_size-1 do begin
+      for jj = 0,graph_size-1 do begin
+        xyouts,ii+0.15,jj+0.5,string(out_area[ii,jj],format='(F6.4)')
+        endfor
+      endfor
+    endif
+
+
+
+;for ii=0,out_area_size-1 do begin
+;  for jj = 0,out_area_size-1 do begin
+;    xyouts,1+ii+0.15,2+jj+0.5,string(out_area[ii,jj],format='(F6.4)')
+;    endfor
+;  endfor
+
+
+
+  ;for jy = out_indices_y[i], y0, -1 do begin  ; proper endpoint for this?
+  ;  out_area[out_area[out_indices_x[i],jy]  += dx[i]  ; check indices!
+  ;  endfor
+  ; fix up the last bit
+  ; add dx[i] * 1-y0 to the right square
+
+
+  ;endfor
+
+;area_out[, one down] += dx
+;for each pair, find area under curve (better put endpoints at 0, pi)
+;area = integral(x1 to x2)
+;y_just_below = floor(min(y,nexty))
+;block area = (xnext-x)*(y_just_below-y0)
+;out_area[,] +=
+;out_area[,-1] += dx
+;actual area is total under curve minus total for next y area down.
+;figure out which are pixel gets the area
+;print,reverse(out_area,2)
+;plot,x,y,psym=7,xticklen=1,yticklen=1,xrange=[0,10],yrange=[0,10],xTICKINTERVAL= 1,yTICKINTERVAL= 1
+;for ii=0,out_area_size-1 do begin
+;  for jj = 0,out_area_size-1 do begin
+;    xyouts,1+ii+0.15,2+jj+0.5,string(out_area[ii,jj],format='(F6.4)')
+;    endfor
+;  endfor
+
+
+end
+
+pro circle_areas_screwed,x0_in,y0_in,r,out_area
+;this procedure calculates the fraction of each pixel covered by a circle of radius r centered at (x,y)
+
+;out_area = $
+;     [0.000000,     0.000000,     0.000000 ,    0.000000 ,    0.000000,     0.000000 ,    0.000000 ,    0.000000,$
+;     0.000000 ,    0.143898,     0.780157,     0.993102,     0.780157,     0.143898,     0.000000,     0.000000,$
+;     0.000000  ,   0.780157,      1.00000,      1.00000,      1.00000,     0.780157,     0.000000,     0.000000,$
+;   0.00289822   ,  0.990204,      1.00000,      1.00000,      1.00000,     0.990203,   0.00534916,     0.000000,$
+;     0.000000    , 0.780157,      1.00000,      1.00000,      1.00000,     0.780157,     0.000000,     0.000000,$
+;     0.000000,     0.143898,     0.780157,     0.993102,     0.780157,     0.143898,     0.000000,     0.000000,$
+;     0.000000,     0.000000,     0.000000,     0.000000,     0.000000,     0.000000,     0.000000,     0.000000,$
+;     0.000000,     0.000000,     0.000000,     0.000000,     0.000000,     0.000000,     0.000000,     0.000000]
+
+return
+
+
+end
+
+pro test_circle_areas
+for i=3.1, 4.2,0.1 do begin
+  for j = 4.1, 5.2, 0.1 do begin
+    for r = 0.50, 2.9, 0.01 do begin
+      circle_areas,i,j,r
+      endfor
+    endfor
+  endfor
+print,"done with test"
+end
+
+pro test_circle_areas2
+for x=5.1, 44.2,0.1 do begin
+  for y = 2.9, 3.2, 0.1 do begin
+    for distance_from_center = 2.750, 2.9, 0.1 do begin
+    arr_size = ceil(distance_from_center) * 2 + 1
+      area = fltarr(arr_size,arr_size)
+
+      circle_areas,x-floor(x)+ceil(distance_from_center),y-floor(y)+ceil(distance_from_center),distance_from_center,area
+      endfor
+    endfor
+  endfor
+print,"done with test"
+end
+
+pro refine10_old, image, feature_data, radius
+common shared_xypoints, xpoints, ypoints
+
+    t0 = systime(/seconds)
+    arr_size = ceil(radius) * 2 + 2
+    xpoints = fltarr(arr_size,arr_size)
+    ypoints = fltarr(arr_size,arr_size)
+    weights = fltarr(arr_size,arr_size)
+    x_base = (findgen(arr_size) - ceil(radius) + 0)#replicate(1.0,arr_size)
+    y_base = replicate(1.0,arr_size) #(findgen(arr_size) - ceil(radius) + 0)
+
+    points=indgen(arr_size*arr_size)
+    float_image = float(image)
+
+    a=fltarr(5); "coefficient" box
+
+    image_size=size(image,/dimensions)
+
+    minxy = ceil(radius) + 2
+    maxx =  image_size[0] - minxy
+    maxy =  image_size[1] - minxy
+
+    for n= 0L, (size(feature_data))[2]-1 do begin  ;for each prospective sphere
+;    for n= 239, 241 do begin
+        x=feature_data[0,n]
+        y=feature_data[1,n]
+        if ((x GE minxy) and (y ge minxy) and (x le maxx) and (y le maxy)) then begin
+            xpoints = x_base + floor(x)
+            ypoints = y_base + floor(y)
+            full_brightnesses = float_image[xpoints[0]:xpoints[0]+arr_size-1,ypoints[0]:ypoints[0]+arr_size-1]
+
+            weights = fltarr(arr_size,arr_size)
+            x_center = x-floor(x)+ceil(radius)
+            y_center = y-floor(y)+ceil(radius)
+
+            circle_areas,x_center,y_center,radius,weights
+
+;           left_side = total(weights[0:floor(x_center)-1,round(y_center)]) + x-floor(x) +0.5
+;           right_side = total(weights[floor(x_center)+1:arr_size-1,round(y_center)]) + 1-(x-floor(x)) -0.5
+;      if abs(left_side - right_side) gt 0.00001 then begin
+;            print, "big trouble", x,y,radius,left_side,right_side
+;            endif
+
+            use_points = where(weights gt 0.0)
+            use_full_brightnesses=full_brightnesses[use_points]
+            use_weights=weights[use_points]
+            xpoints=xpoints[use_points]
+            ypoints=ypoints[use_points]
+
+            a[0] = float(feature_data[0:4,n])
+
+            Best_values = CURVEFIT(use_points, use_full_brightnesses, use_weights, a, chisq=chisq,FITA = [1,1,1,1,1],FUNCTION_NAME = 'sigmoid_2d_pro',iter=iter, $
+                                status = status,itmax=100)
+;print,x,y,iter,a[0:1]
+            convergence = 1 - status
+            feature_data[0,n]=a  ;this fills in values 0 through 4
+            feature_data[5,n]=chisq
+            feature_data[6,n]=convergence
+            if (((a[0] - x)^2 + (a[1] - y)^2) gt 4*radius*radius) then begin
+                feature_data[6,n] = 0.0
+                print,'wiped out.',n
+                endif
+;print,n,convergence,iter,chisq,x,y, a
+
+            endif
+
+
+    endfor  ;for n
+t1 = systime(/seconds)
+print,"refine complete time: ",t1-t0
+end
+
+pro refine10, image, feature_data, radius
+common shared_xypoints, xpoints, ypoints
+
+    t0 = systime(/seconds)
+    arr_size = ceil(radius) * 2 + 2
+    xpoints = fltarr(arr_size,arr_size)
+    ypoints = fltarr(arr_size,arr_size)
+    weights = fltarr(arr_size,arr_size)
+    x_base = (findgen(arr_size) - ceil(radius) + 0)#replicate(1.0,arr_size)
+    y_base = replicate(1.0,arr_size) #(findgen(arr_size) - ceil(radius) + 0)
+
+    points=indgen(arr_size*arr_size)
+    float_image = float(image)
+
+    a=fltarr(5); "coefficient" box
+
+    image_size=size(image,/dimensions)
+
+    minxy = ceil(radius) + 2
+    maxx =  image_size[0] - minxy
+    maxy =  image_size[1] - minxy
+
+    for n= 0L, (size(feature_data))[2]-1 do begin  ;for each prospective sphere
+;    for n= 239, 239 do begin
+        x=feature_data[0,n]
+        y=feature_data[1,n]
+        if ((x GE minxy) and (y ge minxy) and (x le maxx) and (y le maxy)) then begin
+            xpoints = x_base + floor(x)
+            ypoints = y_base + floor(y)
+            full_brightnesses = float_image[xpoints[0]:xpoints[0]+arr_size-1,ypoints[0]:ypoints[0]+arr_size-1]
+
+            weights = fltarr(arr_size,arr_size)
+            x_center = x-floor(x)+ceil(radius)
+            y_center = y-floor(y)+ceil(radius)
+
+            circle_areas,x_center,y_center,radius,weights
+;weights = weights*0+1.0
+
+;           left_side = total(weights[0:floor(x_center)-1,round(y_center)]) + x-floor(x) +0.5
+;           right_side = total(weights[floor(x_center)+1:arr_size-1,round(y_center)]) + 1-(x-floor(x)) -0.5
+;      if abs(left_side - right_side) gt 0.00001 then begin
+;            print, "big trouble", x,y,radius,left_side,right_side
+;            endif
+
+            use_points = where(weights gt 0.0)
+            use_full_brightnesses=full_brightnesses[use_points]
+            use_weights=weights[use_points]
+            xpoints=xpoints[use_points]
+            ypoints=ypoints[use_points]
+;use_weights = use_weights^2
+
+            a[0] = float(feature_data[0:4,n])
+
+            Best_values = CURVEFIT(use_points, use_full_brightnesses, use_weights, a, chisq=chisq,FITA = [1,1,1,1,1], $
+                          FUNCTION_NAME = 'sigmoid_2d_pro_faster' ,iter=iter, $
+                                status = status,tol=0.00001,itmax=100)
+;print,x,y,iter,a[0:1]
+            convergence = 1 - status
+            feature_data[0,n]=a  ;this fills in values 0 through 4
+            feature_data[5,n]=chisq
+            feature_data[6,n]=convergence
+            if (((a[0] - x)^2 + (a[1] - y)^2) gt 4*radius*radius) then begin
+                feature_data[6,n] = 0.0
+                print,'wiped out.',n,a[0],a[1]
+                endif
+;print,n,convergence,iter,chisq,x,y, a
+
+            endif
+
+    endfor  ;for n
+t1 = systime(/seconds)
+print,"refine complete time: ",t1-t0
+end
+
+pro refine10_average_profile, image, feature_data, radius
+common shared_xypoints, xpoints, ypoints
+
+    t0 = systime(/seconds)
+    arr_size = ceil(radius) * 2 + 2
+    xpoints = fltarr(arr_size,arr_size)
+    ypoints = fltarr(arr_size,arr_size)
+    weights = fltarr(arr_size,arr_size)
+    x_base = (findgen(arr_size) - ceil(radius) + 0)#replicate(1.0,arr_size)
+    y_base = replicate(1.0,arr_size) #(findgen(arr_size) - ceil(radius) + 0)
+
+    points=indgen(arr_size*arr_size)
+    float_image = float(image)
+
+    a=fltarr(5); "coefficient" box
+
+    image_size=size(image,/dimensions)
+
+    minxy = ceil(radius) + 2
+    maxx =  image_size[0] - minxy
+    maxy =  image_size[1] - minxy
+
+    for n= 0L, (size(feature_data))[2]-1 do begin  ;for each prospective sphere
+;    for n= 53, 53 do begin
+        x=feature_data[0,n]
+        y=feature_data[1,n]
+        if ((x GE minxy) and (y ge minxy) and (x le maxx) and (y le maxy)) then begin
+            xpoints = x_base + floor(x)
+            ypoints = y_base + floor(y)
+            full_brightnesses = float_image[xpoints[0]:xpoints[0]+arr_size-1,ypoints[0]:ypoints[0]+arr_size-1]
+
+            weights = fltarr(arr_size,arr_size)
+            x_center = x-floor(x)+ceil(radius)
+            y_center = y-floor(y)+ceil(radius)
+
+            circle_areas,x_center,y_center,radius,weights
+;weights = weights*0+1.0
+
+;           left_side = total(weights[0:floor(x_center)-1,round(y_center)]) + x-floor(x) +0.5
+;           right_side = total(weights[floor(x_center)+1:arr_size-1,round(y_center)]) + 1-(x-floor(x)) -0.5
+;      if abs(left_side - right_side) gt 0.00001 then begin
+;            print, "big trouble", x,y,radius,left_side,right_side
+;            endif
+
+            use_points = where(weights gt 0.0)
+            use_full_brightnesses=full_brightnesses[use_points]
+            use_weights=weights[use_points]
+            xpoints=xpoints[use_points]
+            ypoints=ypoints[use_points]
+;use_weights = use_weights^2
+
+            a[0] = float(feature_data[0:4,n])
+
+            Best_values = CURVEFIT(use_points, use_full_brightnesses, use_weights, a, chisq=chisq,FITA = [1,1,1,1,1], $
+                          FUNCTION_NAME = 'function_of_average_profile' ,iter=iter, $
+                                status = status,tol=0.0001,itmax=500, /noderivative)
+;print,x,y,iter,a[0:1]
+            convergence = 1 - status
+            feature_data[5,n]=chisq
+            feature_data[6,n]=convergence
+            if (convergence eq 0) then begin
+                print,"did not converge:",n,a,x,y
+                endif
+            if (((a[0] - x)^2 + (a[1] - y)^2) gt 4*radius*radius) then begin
+                feature_data[6,n] = 0.0
+                print,'wiped out.',n,a[0],a[1]
+                endif
+            feature_data[0,n]=a  ;this fills in values 0 through 4
+;print,n,convergence,iter,chisq,x,y, a
+
+            endif
+
+    endfor  ;for n
+t1 = systime(/seconds)
+print,"refine complete time: ",t1-t0
+end

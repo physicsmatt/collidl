@@ -1,0 +1,503 @@
+;I may have swapped x and y at one point in the logic, I don't think so.  it should be pretty blatantly obvious if so.
+;other than that, this should work like a charm.
+;the only major kludge is the A coefficient for the C+Asin((2pi/w)*r)
+
+function fourier_bpass,data
+
+;data=data(48:48+511,80:80+511)  probably test code.
+n=size(data) & n=n(1:n(0))
+print,n
+window,0,xsize=n(0)+140,ysize=n(1)+140
+plot,[0],[0],/nodata,xrange=[0,n(0)],yrange=[0,n(1)],xstyle=1,ystyle=1,position=[100,100,100+n(0),100+n(1)],/device
+tvscl,data,100,100
+
+
+f=shift(fft(data),n(0)/2,n(1)/2)
+window,4,xsize=n(0)+140,ysize=n(1)+140
+tvscl,alog(abs(f)),100,100 & tv,bytscl(rebin(abs(f),n(0)/8,n(1)/8),max=2),100,100
+
+
+ns=max(n)/2 & nphi=floor(2*!pi*ns)
+ds=1./ns
+s=ds*findgen(ns)#replicate(1,nphi)
+phi=replicate(1.,ns)#(findgen(nphi)*2*!pi/nphi)
+x=s*cos(phi)*n(0)+n(0)/2
+y=s*sin(phi)*n(1)+n(1)/2
+sf=bilinear(f,x,y) & sff=sf
+sf=total(abs(sf)^2,2)/nphi & s=s(*,0)
+window,8
+plot,2*!pi*s,s*sf,psym=-4,symsiz=0.3
+
+tmp=max(s*sf,w)
+r=1./s(w)
+print,'Radius (max):        ',r,' pixels'
+w=where((s*sf) gt tmp/2.)
+r=1./(total(s(w))/n_elements(w))
+print,'Radius (halfheight): ',r,' pixels'
+oplot,[1/r],[tmp/2.],psym=4
+
+x=(findgen(n(0))-n(0)/2.)#replicate(1.,n(1))
+y=replicate(1.,n(0))#(findgen(n(1))-n(1)/2.)
+q=sqrt((x/n(0))^2+(y/n(1))^2)
+q0=1./r
+perc=0.35
+msk=(q gt (1-perc)*q0) and (q lt (1+perc)*q0)
+msk=(q gt (1-perc)*q0) and (q lt q0/(1-perc))
+wset,4 & wshow,4
+tvscl,abs(f)*msk,100,100
+
+filtdata=float(fft(shift(msk*f,-n(0)/2,-n(1)/2),/inverse))
+window,9
+wset,9 & wshow,9
+tvscl,filtdata,100,100
+;print,filtdata[0:10,0:10]
+return,filtdata
+end
+
+function sigmoid_1d,r,params
+  outbound=dblarr(4); return goodie box!
+  p= 2.0
+  w=params[0]
+  A=params[1]
+  C=params[2]
+;print,w,A,C
+  iw = 1/w
+  exp_mrwp= exp(-(iw*r)^p)
+  Aexp_mrwp= A*exp_mrwp
+  prwpm1=p*(iw*r)^(p-1)
+;  outbound[0] = A*exp(-(r/w)^p) + C                          ;function
+;  outbound[1] = (A*exp(-(r/w)^p)*p*r     *(r/w)^(p-1))/w^2   ;d/dw
+;  outbound[2] = exp(-(r/w)^p)                                ;d/dA
+
+  ;this is same as above, but optimized for speed.
+  outbound[0] = Aexp_mrwp + C                          ;function
+  outbound[1] = Aexp_mrwp * prwpm1 * r *iw^2       ;d/dw
+  outbound[2] = exp_mrwp                                ;d/dA
+  outbound[3] = 1.0                                          ;d/dC
+  return, outbound
+end
+
+pro sigmoid_2d_pro,indep,params,F,outbound  ;written according to how it's required for "curvefit"
+  common shared_xypairs, xy_pairs
+;  outbound=fltarr(6); return goodie box!
+  outbound=FLTARR(N_ELEMENTS(indep),5)
+  index = round(indep)
+  x=REAL_PART(xy_pairs[index])
+  y=IMAGINARY(xy_pairs[index])
+;print,"index, x,y are",index,x,y
+;print,"index, x,y are"
+;print,index
+;print,x
+;print,y
+  p= 2
+  x0=params[0]
+  y0=params[1]
+  w=params[2]
+  A=params[3]
+  C=params[4]
+;print,x0,y0,w,A,C
+  dx = x-x0
+  dy = y-y0
+  iw = 1/w
+  r=sqrt((dy^2)+(dx^2))
+  exp_mrwp= exp(-(iw*r)^p)
+  Aexp_mrwp= A*exp_mrwp
+  prwpm1=p*(iw*r)^(p-1)
+  Aexp_mrwp_prwpm1 = Aexp_mrwp * prwpm1
+;  outbound[0] = A*exp(-(r/w)^p) + C                          ;function
+;  outbound[1] = A*exp(-(r/w)^p)*p*(x-x0)*(r/w)^(p-1)         ;d/dx0
+;  outbound[2] = A*exp(-(r/w)^p)*p*(y-y0)*(r/w)^(p-1)         ;d/dy0
+;  outbound[3] = (A*exp(-(r/w)^p)*p*r     *(r/w)^(p-1))/w^2   ;d/dw
+;  outbound[4] = exp(-(r/w)^p)                                ;d/dA
+
+  ;this is same as above, but optimized for speed.
+  f = Aexp_mrwp + C                          ;function
+  outbound[0,0] = Aexp_mrwp_prwpm1 * dx       ;d/dx0
+  outbound[0,1] = Aexp_mrwp_prwpm1 * dy       ;d/dy0
+  outbound[0,2] = Aexp_mrwp_prwpm1 * r *iw^2       ;d/dw
+  outbound[0,3] = exp_mrwp                                ;d/dA
+  outbound[*,4] = 1.0                                          ;d/dC
+  return
+end
+
+function sigmoid_2d,indep,params
+  common shared_xypairs, xy_pairs
+  outbound=fltarr(6); return goodie box!
+  index = fix(indep)
+  x=REAL_PART(xy_pairs[index])
+  y=IMAGINARY(xy_pairs[index])
+;print,"index, x,y are",index,x,y
+  p= 2
+  x0=params[0]
+  y0=params[1]
+  w=params[2]
+  A=params[3]
+  C=params[4]
+;print,x0,y0,w,A,C
+  dx = x-x0
+  dy = y-y0
+  iw = 1/w
+  r=sqrt((dy^2)+(dx^2))
+  exp_mrwp= exp(-(iw*r)^p)
+  Aexp_mrwp= A*exp_mrwp
+  prwpm1=p*(iw*r)^(p-1)
+  Aexp_mrwp_prwpm1 = Aexp_mrwp * prwpm1
+;  outbound[0] = A*exp(-(r/w)^p) + C                          ;function
+;  outbound[1] = A*exp(-(r/w)^p)*p*(x-x0)*(r/w)^(p-1)         ;d/dx0
+;  outbound[2] = A*exp(-(r/w)^p)*p*(y-y0)*(r/w)^(p-1)         ;d/dy0
+;  outbound[3] = (A*exp(-(r/w)^p)*p*r     *(r/w)^(p-1))/w^2   ;d/dw
+;  outbound[4] = exp(-(r/w)^p)                                ;d/dA
+
+  ;this is same as above, but optimized for speed.
+  outbound[0] = Aexp_mrwp + C                          ;function
+  outbound[1] = Aexp_mrwp_prwpm1 * dx       ;d/dx0
+  outbound[2] = Aexp_mrwp_prwpm1 * dy       ;d/dy0
+  outbound[3] = Aexp_mrwp_prwpm1 * r *iw^2       ;d/dw
+  outbound[4] = exp_mrwp                                ;d/dA
+  outbound[5] = 1.0                                          ;d/dC
+  return, outbound
+end
+
+function sintest,indep,params
+  common shared_xypairs, xy_pairs
+  outbound=complexarr(6); return goodie box!
+  index = fix(indep)
+  x=REAL_PART(xy_pairs[index])
+  y=IMAGINARY(xy_pairs[index])
+;print,"index, x,y are",index,x,y
+  x0=params[0]
+  y0=params[1]
+  w=params[2]
+  A=params[3]
+  C=params[4]
+;print,x0,y0,w,A,C
+  r=sqrt(((y-y0)^2)+((x-x0)^2))
+  PI2w = 2*!PI/w
+  outbound[0] = A*cos(PI2w*r)+C  ;function
+  outbound[1] = A*sin(PI2w*r)*(PI2w/r)*(x-x0)   ;d/dx0
+  outbound[2] = A*sin(PI2w*r)*(PI2w/r)*(y-y0)   ;d/dy0
+  outbound[3] = A*sin(PI2w*r)*(PI2w*r)/w       ;d/dw
+  outbound[4] = cos(PI2w*r)                  ;d/dA
+  outbound[5] = 1.0                            ;d/dC
+  return, outbound
+end
+
+
+
+function make_test_image ;
+arr_size = 256
+base_period = 3.4
+amplitude = 80
+offset = 128
+
+int_im = indgen(arr_size,arr_size,/LONG)
+com_im = complex((int_im mod arr_size),(int_im / arr_size))
+
+;k1 = complex(1.0,0.0)*(2*!PI)/period
+;k2 = complex(cos(!PI/3),sin(!PI/3))*(2*!PI)/period
+;k3 = complex(cos(!PI/3),-sin(!PI/3))*(2*!PI)/period
+
+;a=[0.0,  1,  0,  -0.333333,  0,  0.200000,  0,  -0.142857,  0,  0.111111,  0,  -0.0909091,  0]
+a=[0.0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0.,  0]
+
+w1=fltarr(arr_size,arr_size)
+w2=fltarr(arr_size,arr_size)
+w3=fltarr(arr_size,arr_size)
+
+for h = 1, 11 do begin
+  period = base_period / h
+  k1 = complex(1.0,0.0)*(2*!PI)/period
+  k2 = complex(cos(!PI/3),sin(!PI/3))*(2*!PI)/period
+  k3 = complex(cos(!PI/3),-sin(!PI/3))*(2*!PI)/period
+  w1 += a[h] * (cos(real_part(k1*conj(com_im)))+1) / 2
+  w2 += a[h] * (cos(real_part(k2*conj(com_im)))+1) / 2
+  w3 += a[h] * (cos(real_part(k3*conj(com_im)))+1) / 2
+endfor
+
+im = w1 * w2 * w3
+
+;im = fix(((im*2-1)*amplitude)+offset)
+im = ((im)*amplitude)+offset
+;im += randomu(1,arr_size,arr_size) - 0.5 ) * 40
+return,fix(im)
+end
+
+
+
+function get_initial_xy, image
+    filtered_image=fourier_bpass(image)
+;    filtered_image=image
+    tv,filtered_image
+    ;print,filtered_image[0:8,0:8]
+
+    localmax = ((filtered_image ge shift(filtered_image,1,0)) and  $
+              (filtered_image ge shift(filtered_image,-1, 0)) and $
+              (filtered_image ge shift(filtered_image, 0, 1)) and $
+              (filtered_image ge shift(filtered_image, 0,-1)) and $
+              (filtered_image ge shift(filtered_image,-1,-1)) and $
+              (filtered_image ge shift(filtered_image,-1, 1)) and $
+              (filtered_image ge shift(filtered_image, 1,-1)) and $
+              (filtered_image ge shift(filtered_image, 1, 1)))
+    tv,bytscl(localmax)
+    where_max = where(localmax)
+    ;return,where_max
+    x_size = (size(image))[1]
+    return_value = float([[where_max MOD x_size],[where_max / x_size]])
+    return,return_value
+end
+
+function build_average_profile,image,xy
+
+    scale_factor = 4
+
+    x_size = (size(image))[1]
+    y_size = (size(image))[2]
+    num_features = (size(xy))[1]
+    area_per_feature = x_size*y_size / num_features
+    profile_size = sqrt(area_per_feature)
+    profile=fltarr(2*profile_size*scale_factor)
+    count=lon64arr(2*profile_size*scale_factor)
+    r_array = indgen(2*profile_size*scale_factor,/float) / scale_factor
+
+;    for n = 0, (num_features) - 1 do begin
+    for n = 138,138 do begin
+       x = xy[n,0]
+       y = xy[n,1]
+;print,n,x,y,image[x,y]
+       for i = round(x - profile_size), round(x + profile_size) do begin
+         for  j = round(y - profile_size), round(y + profile_size) do begin
+            if (i ge 0) and (i lt x_size) and (j ge 0) and (j lt y_size) then begin
+                r = sqrt((x-i)^2+(y-j)^2)
+                index = round(r*scale_factor)
+;print,n,i,j,r,index,image[i,j]
+                profile[index] += image[i,j]
+                count[index] += 1
+            endif
+         endfor
+       endfor
+    endfor
+    profile /= count
+    profile = profile[where(count gt 0)]
+
+    r_array = r_array[where(count gt 0)]
+
+    sigma = 1.0 / sqrt(count[where(count gt 0)])
+
+    ;print,'count = ', count
+    ;print,'profile = ',profile
+    ;print,'r_array = ', r_array
+    ;print,'sigma = ',sigma
+
+    local_mins = where((profile le shift(profile,-1)) and (profile le shift(profile,1)))
+    first_local_min = local_mins[0]
+    first_local_min = max([first_local_min,2])
+    return_value = [[r_array],[profile],[sigma]]
+    return_value = return_value[0:first_local_min,*]
+
+    plot,profile
+    return,return_value
+end
+
+
+pro refine5, image, feature_data, distance_from_center
+common shared_xypairs, xy_pairs
+
+    a=dblarr(5); "coefficient" box
+
+    image_size=size(image,/dimensions)
+    distance_from_center_squared = distance_from_center*distance_from_center
+    max_points = ((distance_from_center+1)*2)^2
+
+    for n= 0, (size(feature_data))[1]-1 do begin  ;for each prospective sphere
+        x=feature_data[n,0]
+        y=feature_data[n,1]
+        xy_pairs = COMPLEXARR(max_points) ;coordinate superstructure
+        Brightnesses = fltarr(max_points)
+
+        count=0
+        for j = round(-distance_from_center + x), round(distance_from_center + x) do begin;indecies for pixels in area around previously found center
+            for k = round(-distance_from_center + y), round(distance_from_center + y) do begin
+                if ((j GE 0) and (j LT image_size[0]) and (k GE 0) and (k LT image_size[1])) then begin
+                    dx = (x-j)
+                    dy = (y-k)
+                    dr2 = dx*dx+dy*dy
+                    if dr2 LE distance_from_center_squared then begin
+                        xy_pairs[count] = DCOMPLEX(j,k)
+                        Brightnesses[count]=image[j,k]
+                        count +=1
+                    endif
+                endif
+            endfor
+        endfor
+        xy_pairs = xy_pairs[0:count-1]
+        Brightnesses = Brightnesses[0:count-1]
+
+       a[0,0] = reform(feature_data[n,0:4])
+
+    ;print,a
+    indep_points=indgen((size(xy_pairs))[1])
+    ;help,indep_points
+    ;print,"indep points = ", indep_points
+    ;help,Brightnesses
+    if (count ge 6) then begin
+ ;       Best_values = LMFIT(indep_points, Brightnesses, a, chisq=chisq,FITA = [0,0,1,1,1],FUNCTION_NAME = 'sigmoid_2d',iter=iter, $
+ ;                           itmin=10,convergence = convergence,itmax=500,TOL=0.001)
+       Best_values = CURVEFIT(indep_points, Brightnesses, weights, a, chisq=chisq,FITA = [1,1,1,1,1],FUNCTION_NAME = 'sigmoid_2d_pro',iter=iter, $
+                            status = status,itmax=100)
+       convergence = 1 - status
+    endif else begin
+       convergence = 0
+       iter=0
+       chisq = 0
+    endelse
+
+;print,n,count, convergence,iter,chisq,x,y, a
+
+    feature_data[n,0]=a[0]
+    feature_data[n,1]=a[1]
+    feature_data[n,2]=a[2]
+    feature_data[n,3]=a[3]
+    feature_data[n,4]=a[4]
+    feature_data[n,5]=chisq
+    feature_data[n,6]=convergence
+
+    if (((a[0] - x)^2 + (a[1] - y)^2) gt 4*distance_from_center_squared) then begin
+       feature_data[n,6] = 0
+       print,'wiped out.'
+       endif
+
+    endfor  ;for n
+end
+
+pro weed_out_bad_points, image,feature_data
+
+    limits = [[0.0                            ,(size(image))[1]                 ],$  ;x coordinate
+              [0.0                            ,(size(image))[2]                 ],$  ;y coordinate
+              [0.5 * median(feature_data[*,2]),  3.0 * median(feature_data[*,2])],$  ;width
+              [0.2 * median(feature_data[*,3]), 10.0 * median(feature_data[*,3])],$  ;amplitude parameter
+              [0.2 * median(feature_data[*,4]), 10.0 * median(feature_data[*,4])],$  ;offset parameter
+              [0.0 * median(feature_data[*,5]), 10.0 * median(feature_data[*,5])]]   ;chi squared parameter
+
+    for i = 0,5 do begin
+        w1 = where(feature_data[*,i] lt limits[0,i],w1_count)
+        w2 = where(feature_data[*,i] gt limits[1,i],w2_count)
+;       print,'deleting: lt',i
+       if (w1_count gt 0) then begin
+            feature_data[w1,6]=0
+ ;           print,transpose(feature_data[w1,*])
+            endif
+;       print,'deleting: gt',i
+       if (w2_count gt 0) then begin
+            feature_data[w2,6]=0
+ ;           print,transpose(feature_data[w2,*])
+            endif
+        endfor
+    w3 = where(feature_data[*,6] gt 0.5, w3_count)
+    if (w3_count gt 0) then begin
+;        print,'deleted all of the following'
+ ;       print,transpose(feature_data[w3,*])
+        feature_data=feature_data[w3,*]
+        endif
+;    print,'kept all of the following'
+;    print,transpose(feature_data)
+
+end
+
+pro remove_duplicates,f
+;note: this is currently programmed as a slow ON^2 routine.  May need to get this faster at some point
+    tolerance = 2.0 ;better way to find this?
+    N = (size(f))[1]
+    for i = 0, N-1 do begin
+       for j = i+1,N-1 do begin
+         ;print,i,j
+         r2 = (f[i,0]-f[j,0])^2 + (f[i,1]-f[j,1])^2
+         if r2 lt tolerance then begin
+            if f[i,5] gt f[j,5] then begin
+               f[j,6] = 0.0
+               print,'removing ',j
+            endif else begin
+               f[i,6]=0.0
+               print,'removing ',i
+               break
+            endelse
+         endif
+         endfor ;j
+       endfor ;i
+    w3 = where(f[*,6] gt 0.5, w3_count)
+    if (w3_count gt 0) then begin
+;        print,'deleted all of the following'
+ ;       print,transpose(feature_data[w3,*])
+        f=f[w3,*]
+        endif
+;    print,'kept all of the following'
+;    print,transpose(f)
+
+
+end
+
+pro find_features, image
+    xy_data = get_initial_xy(image)
+    feature_data = fltarr((size(xy_data))[1],7)
+    feature_data[0,0]=xy_data
+    for i=0,1 do begin
+        average_profile = build_average_profile(image,feature_data)
+        r_values = average_profile[*,0]
+        z_values = average_profile[*,1]
+        errors = average_profile[*,2]
+
+        a = fltarr(3)
+        profile_size = (size(z_values))[1]
+        a[0] = r_values[profile_size / 3]
+        a[2] = z_values[profile_size-1]
+        a[1] = z_values[0] - a[2]
+
+        z_fit_values = LMFIT(r_values, z_values, a, measure_errors = errors,chisq=chisq,FITA = [1,1,1],FUNCTION_NAME = 'sigmoid_1d',iter=iter, itmin=20,convergence = convergence,itmax=100,/double);,/double,TOL=0.00001)
+
+    plot,r_values,z_values,psym=6
+    oplot,r_values,z_fit_values,COLOR=128
+    print,a
+
+       feature_data[*,2]=a[0]
+       feature_data[*,3]=a[1]
+       feature_data[*,4]=a[2]
+
+    ;show_locations,image,feature_data
+
+
+       refine5,image,feature_data,1.3*r_values[profile_size-1]
+
+    show_locations,image,feature_data
+
+
+       weed_out_bad_points,image,feature_data
+    show_locations,image,feature_data
+
+    endfor
+
+    remove_duplicates,feature_data
+
+    show_locations,image,feature_data
+
+
+print,'program done.'
+print, 'points found: ',(size(feature_data))[1]
+
+
+end
+
+pro show_locations,image,feature_data
+
+    xsize = (size(image))[1]
+    ysize = (size(image))[2]
+    location_image = bytarr(xsize,ysize)
+    for n= 0, (size(feature_data))[1]-1 do begin  ;for each prospective sphere
+        x = round(feature_data[n,0])
+        y = round(feature_data[n,1])
+        if (x ge 0) and (x lt xsize) and (y ge 0) and (y lt ysize) then begin
+            location_image[x,y]=255
+            endif
+        endfor
+     location_image(43,39)=128
+    tv,congrid(location_image,512,512)
+    return
+end

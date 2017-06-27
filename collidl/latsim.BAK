@@ -1,0 +1,175 @@
+pro load_initial_lattice, lat
+;  lat[64:192,64:192] = 1
+  lat[4:12,4:12] = 1
+  end
+
+function fill_probs
+  prob = dblarr(5,4)
+  prob[*,0] = [-2.0, -1.0, 0.0, 1.0, 2.0]
+  prob[*,1] = [-3.0, -2.0, -1.0, 0.0, 0.0]
+  prob[*,2] = [0.0, 0.0, 1.0, 1.0, 1.0]
+  return,prob
+  end
+
+function neighbors, lat,x,y
+  width = (size(lat))[1] && height = (size(lat))[2]
+  n = intarr(4,2)
+  n[0,*] = [x+1,y]
+  n[1,*] = [x-1,y]
+  n[2,*] = [x,y+1]
+  n[3,*] = [x,y-1]
+  if (n[0,0] gt width  - 1) then n[0,0] = 0
+  if (n[1,0] lt 0         ) then n[1,0] = width - 1
+  if (n[2,1] gt height - 1) then n[2,1] = 0
+  if (n[3,1] lt 0         ) then n[3,1] = height - 1
+  return,n
+  end
+
+pro calculate_flip_e_self, lat,x,y
+  n = neighbors(lat,x,y)
+  lat[x,y,1]= -2
+  for ni = 0,3 do lat[x,y,1]=lat[x,y,1] + (lat[x,y,0] ne lat[n[ni,0],n[ni,1],0])
+  end
+
+pro calculate_flip_e_self_and_neighbors, lat,x,y
+  n = neighbors(lat,x,y)
+  calculate_flip_e_self, lat,x,y
+  for ni = 0,3 do calculate_flip_e_self, lat,n[ni,0],n[ni,1]
+  end
+
+pro calculate_all_flip_energies, lat
+  width = (size(lat))[1] && height = (size(lat))[2]
+  for i=0,width-1 do begin
+    for j=0,height-1 do begin
+      calculate_flip_e_self, lat,i,j
+      end
+    end
+  end
+
+function calculate_total_energy, lat
+  width = (size(lat))[1] && height = (size(lat))[2]
+  energy = 0
+  for i=0,width-1 do begin
+    for j=0,height-1 do begin
+      if (lat[i,j,0] eq 0) then begin
+        n = neighbors(lat,i,j)
+        for ni = 0,3 do energy = energy - lat[n[ni,0],n[ni,1],0]
+        end
+      end
+    end
+  return, energy/2
+  end
+
+pro fill_energy_arrays, lat,energies
+  width = (size(lat))[1] && height = (size(lat))[2]
+  for i=0,width-1 do begin
+    for j=0,height-1 do begin
+      energy = lat[i,j,1]+2
+      e_count = energies[energy,0,0] + 1
+      lat[i,j,2]=e_count
+      energies[energy,0,0] = e_count
+      energies[energy,e_count,0]=i
+      energies[energy,e_count,1]=j
+      end
+    end
+  end
+
+pro remove_self, lat,energies,x,y
+  energy = lat[x,y,1]+2
+  e_count = energies[energy,0,0]
+  energies[energy,0,0] = e_count - 1
+  energies[energy,lat[x,y,2],0]=energies[energy,e_count,0]
+  energies[energy,lat[x,y,2],1]=energies[energy,e_count,1]
+  energies[energy,e_count,0] = 0
+  energies[energy,e_count,1] = 0
+  lat[energies[energy,lat[x,y,2],0],energies[energy,lat[x,y,2],1],2] = lat[x,y,2]
+  end
+
+pro remove_self_and_neighbors,lat,energies,x,y
+  n = neighbors(lat,x,y)
+  remove_self, lat,energies,x,y
+  for ni = 0,3 do remove_self, lat,energies,n[ni,0],n[ni,1]
+  end
+
+pro add_to_elist_self, lat,energies,x,y
+  energy = lat[x,y,1]+2
+  e_count = energies[energy,0,0] + 1
+  energies[energy,0,0] = e_count
+  energies[energy,e_count,0]= x
+  energies[energy,e_count,1]= y
+  lat[x,y,2]=e_count
+  end
+
+pro add_to_elist_self_and_neighbors, lat,energies,x,y
+  n = neighbors(lat,x,y)
+  add_to_elist_self, lat,energies,x,y
+  for ni = 0,3 do add_to_elist_self, lat,energies,n[ni,0],n[ni,1]
+  end
+
+pro flip_and_update, lat,energies,x,y,total_energy,area
+  lat[x,y,0] = 1 - lat[x,y,0]
+  area = area - 1 + 2*lat[x,y,0]
+  total_energy = total_energy + lat[x,y,1]
+  remove_self_and_neighbors, lat,energies,x,y
+  calculate_flip_e_self_and_neighbors, lat,x,y
+  add_to_elist_self_and_neighbors, lat,energies,x,y
+  end
+
+function pick_place_to_change, energies,prob,x,y,time
+  common random_block, seed
+  total_prob=double(0.0)
+  for i=0,4 do begin
+    prob[i,3] = energies[i,0,0]*prob[i,2] + total_prob
+    total_prob = prob[i,3]
+    end
+  if (total_prob eq double(0.0)) then return,0
+  ran1 = randomu(seed,/double)
+  which_one = ran1*total_prob
+  which_energy = 0
+  while (prob[which_energy,3] lt which_one) do which_energy = which_energy + 1
+  ran2 = randomu(seed,/double)
+  which_index = ceil(ran2*energies[which_energy,0,0])
+  x = energies[which_energy,which_index,0]
+  y = energies[which_energy,which_index,1]
+  time = time + 1/total_prob
+;  print,energies[0,0,0],energies[1,0,0],energies[2,0,0],energies[3,0,0],energies[4,0,0],which_energy,which_index
+  return,1
+  end
+
+pro visualize, lat
+  view_lat = 255*lat[*,*,0]
+  view_lat = reverse(view_lat,2)
+  view_lat = rebin(view_lat,256,256,/sample)
+;  view_lat = rebin(view_lat,250,250,/sample)
+   tv,view_lat
+  end
+
+;------------------
+;Start of main program
+;------------------
+
+openw,u,outfilename,/get_lun
+lat = intarr(16,16,3)
+energies = intarr(5,(size(lat))[1]*(size(lat))[2]+1,2)
+time = double(0.0)
+load_initial_lattice, lat
+total_energy = calculate_total_energy(lat)
+area = long(total(lat[*,*,0]))
+calculate_all_flip_energies, lat
+fill_energy_arrays, lat,energies
+prob = fill_probs()
+visualize,lat
+for i=long(0),10000000 do begin
+  if not(pick_place_to_change(energies,prob,x,y,time)) then break
+  flip_and_update,lat,energies,x,y,total_energy,area
+  printf,u,i,time,total_energy,area
+
+  if ((i MOD 100) eq 0) then begin
+    visualize,lat
+    print,i,time,total_energy,area
+    end
+  end
+close,u
+free_lun,u
+print,'done.'
+end

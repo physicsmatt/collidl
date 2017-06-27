@@ -1,0 +1,220 @@
+;I may have swapped x and y at one point in the logic, I don't think so.  it should be pretty blatantly obvious if so.
+;other than that, this should work like a charm.
+;the only major kludge is the A coefficient for the C+Asin((2pi/w)*r)
+
+function sigmoidtest,indep,params
+  common shared_xypairs, xy_pairs
+  outbound=complexarr(6); return goodie box!
+  index = fix(indep)
+  x=REAL_PART(xy_pairs[index])
+  y=IMAGINARY(xy_pairs[index])
+;print,"index, x,y are",index,x,y
+  p= 2.0
+  x0=params[0]
+  y0=params[1]
+  w=params[2]
+  A=params[3]
+  C=params[4]
+;print,x0,y0,w,A,C
+  r=sqrt(((y-y0)^2)+((x-x0)^2))
+  PI2w = 2*!PI/w
+  outbound[0] = A*exp(-(r/w)^p) + C                          ;function
+  outbound[1] = A*exp(-(r/w)^p)*p*(x-x0)*(r/w)^(p-1)         ;d/dx0
+  outbound[2] = A*exp(-(r/w)^p)*p*(y-y0)*(r/w)^(p-1)         ;d/dy0
+  outbound[3] = (A*exp(-(r/w)^p)*p*r     *(r/w)^(p-1))/w^2   ;d/dw
+  outbound[4] = exp(-(r/w)^p)                                ;d/dA
+  outbound[5] = 1.0                                          ;d/dC
+  return, outbound
+end
+
+function sintest,indep,params
+  common shared_xypairs, xy_pairs
+  outbound=complexarr(6); return goodie box!
+  index = fix(indep)
+  x=REAL_PART(xy_pairs[index])
+  y=IMAGINARY(xy_pairs[index])
+;print,"index, x,y are",index,x,y
+  x0=params[0]
+  y0=params[1]
+  w=params[2]
+  A=params[3]
+  C=params[4]
+;print,x0,y0,w,A,C
+  r=sqrt(((y-y0)^2)+((x-x0)^2))
+  PI2w = 2*!PI/w
+  outbound[0] = A*cos(PI2w*r)+C  ;function
+  outbound[1] = A*sin(PI2w*r)*(PI2w/r)*(x-x0)   ;d/dx0
+  outbound[2] = A*sin(PI2w*r)*(PI2w/r)*(y-y0)   ;d/dy0
+  outbound[3] = A*sin(PI2w*r)*(PI2w*r)/w       ;d/dw
+  outbound[4] = cos(PI2w*r)                  ;d/dA
+  outbound[5] = 1.0                            ;d/dC
+  return, outbound
+end
+
+
+
+function make_test_image ;
+arr_size = 256
+base_period = 8.0
+amplitude = 80
+offset = 128
+
+int_im = indgen(arr_size,arr_size,/LONG)
+com_im = complex((int_im mod arr_size),(int_im / arr_size))
+
+;k1 = complex(1.0,0.0)*(2*!PI)/period
+;k2 = complex(cos(!PI/3),sin(!PI/3))*(2*!PI)/period
+;k3 = complex(cos(!PI/3),-sin(!PI/3))*(2*!PI)/period
+
+;a=[0.0,  1,  0,  -0.333333,  0,  0.200000,  0,  -0.142857,  0,  0.111111,  0,  -0.0909091,  0]
+a=[0.0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0.,  0]
+
+w1=fltarr(arr_size,arr_size)
+w2=fltarr(arr_size,arr_size)
+w3=fltarr(arr_size,arr_size)
+
+for h = 1, 11 do begin
+  period = base_period / h
+  k1 = complex(1.0,0.0)*(2*!PI)/period
+  k2 = complex(cos(!PI/3),sin(!PI/3))*(2*!PI)/period
+  k3 = complex(cos(!PI/3),-sin(!PI/3))*(2*!PI)/period
+  w1 += a[h] * (cos(real_part(k1*conj(com_im)))+1) / 2
+  w2 += a[h] * (cos(real_part(k2*conj(com_im)))+1) / 2
+  w3 += a[h] * (cos(real_part(k3*conj(com_im)))+1) / 2
+endfor
+
+im = w1 * w2 * w3
+
+;im = fix(((im*2-1)*amplitude)+offset)
+im = fix(((im)*amplitude)+offset)
+return,im
+end
+
+
+function make_test_image2 ; makes a single cosine function.
+arr_size = 256
+period = 8.0
+amplitude = 80
+inv_period = 1.0/period
+offset = 128
+x0 = 16
+y0 = 10
+
+im = fltarr(256,256)
+
+int_im = indgen(arr_size,arr_size,/LONG)
+com_im = complex((int_im mod arr_size),(int_im / arr_size))
+com_im += complex(-x0,-y0)
+
+im = cos(2*!PI*inv_period*abs(com_im))
+im = round(im * amplitude + offset)
+return,im
+end
+
+
+pro refineB3, image, distance_from_center, x,y,sphere_locations
+common shared_xypairs, xy_pairs
+
+xy_pairs = COMPLEXARR((distance_from_center*2)*(distance_from_center*2)) ;coordinate superstructure
+a=dblarr(5); "coefficient" box
+Brightnesses = fltarr((distance_from_center*2)*(distance_from_center*2))
+
+;image=kludgegen()
+;temp = ''
+;READ, temp, Prompt='Guess Center in x '
+;READS, temp, x
+;READ, temp, Prompt='Guess Center in y '
+;READS, temp, y
+
+;locsize=size(location_data,/dimensions) ; temporarily commented
+pix=size(image,/dimensions)
+;Chis=fltarr(locsize[1]) ; temporarily commented
+Chis=fltarr(10)
+;for i = 0L, locsize[1]-1 do begin ; temporarily commented
+distance_from_center_squared = distance_from_center*distance_from_center
+for i = 0L, 0 do begin
+count=0
+    ;x=location_data[0,i]
+    ;y=location_data[1,i]
+    for j = -distance_from_center + round(x), distance_from_center + round(x) do begin;indecies for pixels in area around previously found center
+
+        for k = -distance_from_center + round(y), distance_from_center + round(y) do begin
+
+        if j GE 0 and j LT pix[0] then begin
+            if k GE 0 and k LT pix[1] then begin;populates an array for the brightnesses.  This should be good.
+              dx = (x-j)
+              dy = (y-k)
+              dr = dx*dx+dy*dy
+              if dr LE distance_from_center_squared then begin
+;print,j,k
+                xy_pairs[count] = DCOMPLEX(j,k)
+                Brightnesses[count]=image[j,k]
+                count +=1
+                endif
+              endif
+            endif
+         endfor
+    endfor
+            xy_pairs = xy_pairs[0:count-1]
+            Brightnesses = Brightnesses[0:count-1]
+
+    a[0]=x+0.3
+    a[1]=y-0.4
+    ;a[2]=8.1;distance_from_center*2 ; sets up the w for the sinusoidal
+    a[2]=4.1;distance_from_center*2 ; sets up the w for the sinusoidal
+    a[3]=70;(Max(Brightnesses)-Min(Brightnesses))/2 ; just a kludge for the amplitude coefficient! no idea what else to do.
+    a[4]=120;MEAN(Brightnesses) ;sets up the C for the sinusoidal.
+
+;print,a
+;help,xy_pairs
+;print,size(xy_pairs)
+indep_points=indgen((size(xy_pairs))[1])
+;help,indep_points
+;print,"indep points = ", indep_points
+;help,Brightnesses
+
+    Best_values = LMFIT(indep_points, Brightnesses, a, chisq=Chis[i],FITA = [1,1,1,1,1],FUNCTION_NAME = 'sigmoidtest',iter=iter, itmin=20,convergence = convergence);,/double,TOL=0.00001,itmax=100)
+
+    ;location_data[0,i]=a[0]
+    ;location_data[1,i]=a[1]
+;print,a
+;print,iter
+;print,convergence
+;print,best_values
+;print,brightnesses
+;print,best_values - brightnesses
+
+if ((convergence eq 1) and (a[0] GT 0) and (a[0] LT 255) and (a[1] GT 0) and (a[1] LT 255)) then begin
+  print, convergence,iter,x,y, a
+  sphere_locations[a[0],a[1]]=255
+  tv,sphere_locations
+endif
+
+endfor
+
+;return, location_data
+
+end
+
+
+pro looptest,image
+
+sphere_locations = bytarr(256,256)
+    for i = 16,64 do begin
+      for j = 16,64 do begin
+        refineB3,image,3,i,j,sphere_locations
+      endfor
+    endfor
+
+end
+
+pro find_average_sphere_profile
+
+;step through spheres
+;for i=0,...
+;x0
+;use refineB3 as a guide for this function.
+;Bin the points into a 10x larger grid space and average them.
+;use a rectangular block; no need for a circle
+
+end
