@@ -13,6 +13,11 @@
 ; 5. Run -> Compile All  (Again!)
 ; 6. At IDL prompt, type: main, spheresize=6, /stay (or whatever switches you want).
 
+;v1.49 notes
+;   Excised the correlation function, using collidl largely as a data prep mechanism
+;   Function now exists as an external applet due to memory usage issues,
+;
+;
 ;v1.48 notes (as of 8/09/05):
 ;   By Matt Trawick
 ;   Adding a new internal switch, "postscript_defects", which generates a postscript file output of
@@ -155,7 +160,7 @@ pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,simu=s
        disccorr=1 ; locate dislocations and calculate their distribution function
 
        ; this is the latest trick, works great
-       Ccorr=1; spawn an external c-program (called Jcor) which does
+       Ccorr=0   ;Preps the data for the external c-program to do the
          ; the correlation calculations fast. Best way so far. By far.
 
 
@@ -196,8 +201,6 @@ pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,simu=s
        W[*]=1
 
 
-
-
 ;     cd, "E:\matt\research\idl_trawick\simsph\w8.25_eta.4\smaller\trials1-9"
 ;     cd, "/home/angelscu/temp/081202/1.25"
 ;     cd, "/usr/temp/HardSpheres/fromthanos" ; make this your favorite data directory
@@ -215,13 +218,10 @@ print,fs
        endif
 
 ; THE MASTER LOOP
-timervar=-1
+
 print,'number of files is',n_elements(fs)
-
-
 time0=systime(1)
        for i=0,n_elements(fs)-1 do begin
-       timervar=timervar+1
          close,/all
          print,'Now working on : ',fs(i)
         windowsclosed=0
@@ -378,6 +378,7 @@ ns=0
           ;endif else begin
           ; draw_app_scroll2,bytscl(img,min=0,max=255),3,wimage
           ;endelse
+
 
 
 
@@ -690,10 +691,6 @@ inbounds=0
          ;will use this for the overlaying of the images
          if ((do_force eq 0) OR (do_bonds eq 0)) then bondsimg=readimage(0)
 
-
-       if (imagesize[1]*imagesize[2] gt 4194304) then begin ;4194304 is 2048x2048
-            widget_control,wbonds,/destroy
-        endif
        ; good trick :  total(bound) = 2*#dislocations
          Summary_of_Data[4,i]=total(bound)/2
 
@@ -920,10 +917,6 @@ smoothbcosangle=0
           endif
          angimg=readimage(0)
          single_angle_histogram=0
-       if (imagesize[1]*imagesize[2] gt 4194304) then begin ;4194304 is 2048x2048
-         widget_control,wbangle,/destroy
-         windowsclosed=1
-       endif
 
 ;      Now we have origimg, bondsimg, angimg to work with
 
@@ -937,6 +930,10 @@ smoothbcosangle=0
          ;try,newimg
          angimg=0
 
+       if (imagesize[1]*imagesize[2] gt 4194304) then begin ;4194304 is 2048x2048
+            widget_control,wbonds,/destroy
+        endif
+        print,'test point'
 
 
          newred=reform(newimg[0,*,*])
@@ -1132,9 +1129,12 @@ smoothbcosangle=0
        ;********************
     if (Ccorr eq 0) then begin
 
-       ; Will spawn an external C program which does the robcor procedure very fast...
-       ; First, need to write out the bonds angle file...
-       openw,u,'bonds.dat',/get_lun
+       ; Writes out and prompts for the desired file name
+
+       pathos=''
+       Read, pathos, Prompt='File Path?'
+       Print, pathos
+       openw,u,pathos,/get_lun
        sampling=2; The decimation rate in getting the bonds
 
        printf,u,sampling
@@ -1151,59 +1151,57 @@ smoothbcosangle=0
 
        free_lun,u
 
+;excised and split off.  there was no reason for them to be run together, it just caused memory
+;and buffer issues.  hopefully this resolves the problem.
+
 ;     spawn, './robcor'
-
-       spawn, 'robcor',/hide
-
-       robcor=read_ascii('robcor.dat');
-       dcorr=transpose(robcor.field1[0,*])
-       ncorr=transpose(robcor.field1[2,*])
-       fcorr=transpose(robcor.field1[1,*])
-
-       print, ncorr[1:200]
-       dimplot=600    ; current work area!  previous code was dimplot=300
-
-
-       window,1,xsize=dimplot+1,ysize=dimplot
-       plot, dcorr(0:dimplot), fcorr(0:dimplot), xtitle='pixels', ytitle='g6(r)',psym=0
-
-       CorrelationLenghTest=abs(fcorr(0:dimplot)-exp(-1.0))
-       CorrelationLengthSeed=min(CorrelationLenghTest,Min_Subscript)
-       print,'The direct correlation length seed was ', Min_Subscript, ' .'
-
-       A=[.5,Min_Subscript]
-
-
-       dimfit=400;
-       minfit=20;
-       iter=0
-       chisq=0
-       yfit = curvefit(dcorr(minfit:dimfit), fcorr(minfit:dimfit), ncorr(minfit:dimfit), A, SIGMA_A, FUNCTION_NAME = 'funct', ITMAX=100, ITER=iter, chisq=chisq)
-       X=indgen(dimfit)
-       ;plot out the determined function in a diffference color
-       ;F = (EXP(-X/A[0]))
-       F = A[0]*(EXP(-X/A[1]))
-       oplot,F,psym=0, color=254
-       ;blue equals 256*127
-       print, ncorr[minfit:dimfit]
-       print, 'and'
-       print, ncorr(minfit:dimfit)
-
-
-       print,'The C correlation length was ', A[1],'+/-',Sigma_a[1],' and its coefficient was', A[0],'+/-',Sigma_a[0]
-       ;print,'The imagetranslate correlation length was ', A[0],' and its coefficient was', ' N/A'
-       print,'It required ', iter , ' iterations, chisq=',chisq
-
-       print, 'Writing robcor file...'
-       openw,u,strmid(fs[i],0,strlen(fs[i])-4)+'robcor.dat',/get_lun
-
-       for LongIndex=0L,n_elements(ncorr)-1 do begin
-         printf,u,dcorr[LongIndex],fcorr[LongIndex], ncorr[LongIndex]
-       endfor
-       free_lun,u
-       close,u
-
-       Summary_of_Data[1,i]=A[1]
+;       spawn, 'robcor',/hide
+;
+;      robcor=read_ascii('robcor.dat');
+;       dcorr=transpose(robcor.field1[0,*])
+;       ncorr=transpose(robcor.field1[2,*])
+;       fcorr=transpose(robcor.field1[1,*])
+;
+;       dimplot=600    ; current work area!  previous code was dimplot=300
+;
+;
+;       window,1,xsize=dimplot+1,ysize=dimplot
+;       plot, dcorr(0:dimplot), fcorr(0:dimplot), xtitle='pixels', ytitle='g6(r)',psym=0
+;
+;       CorrelationLenghTest=abs(fcorr(0:dimplot)-exp(-1.0))
+;       CorrelationLengthSeed=min(CorrelationLenghTest,Min_Subscript)
+;       print,'The direct correlation length seed was ', Min_Subscript, ' .'
+;
+;       A=[.5,Min_Subscript]
+;
+;
+;       dimfit=200;
+;       minfit=20;
+;       iter=0
+;       chisq=0
+;       yfit = curvefit(dcorr(minfit:dimfit), fcorr(minfit:dimfit), ncorr(minfit:dimfit), A, SIGMA_A, FUNCTION_NAME = 'funct', ITMAX=100, ITER=iter, chisq=chisq)
+;       X=indgen(dimfit)
+;       ;plot out the determined function in a diffference color
+;       ;F = (EXP(-X/A[0]))
+;       F = A[0]*(EXP(-X/A[1]))
+;       oplot,F,psym=0, color=254
+;       ;blue equals 256*127
+;
+;
+;       print,'The C correlation length was ', A[1],'+/-',Sigma_a[1],' and its coefficient was', A[0],'+/-',Sigma_a[0]
+;       ;print,'The imagetranslate correlation length was ', A[0],' and its coefficient was', ' N/A'
+;       print,'It required ', iter , ' iterations, chisq=',chisq
+;
+;       print, 'Writing robcor file...'
+;       openw,u,strmid(fs[i],0,strlen(fs[i])-4)+'robcor.dat',/get_lun
+;
+;       for LongIndex=0L,n_elements(ncorr)-1 do begin
+;         printf,u,dcorr[LongIndex],fcorr[LongIndex], ncorr[LongIndex]
+;       endfor
+;       free_lun,u
+;       close,u
+;
+;       Summary_of_Data[1,i]=A[1]
     endif
        bondsx=0
        bondsy=0
@@ -1226,7 +1224,7 @@ smoothbcosangle=0
        Gf(Gn(0)/2, Gn(1)/2)=0
        bGf=Gf[Gn[0]/2-70:Gn[0]/2+70,Gn[1]/2-70:Gn[1]/2+70]
     data=0
-       showimage,bytscl(bGf),3,wGfft
+       showimage,bytscl(bGf),1,wGfft
 
 ;HEY!  THIS ISN'T USED
        tmp=max(Gf,Gw)
@@ -1657,7 +1655,7 @@ CorrelationLengthSeed=0
 
           end else begin
           if (do_bonds eq 0) then begin
-          ;    widget_control,wbangle,/destroy
+              widget_control,wbangle,/destroy
               widget_control,wcombined,/destroy
           ;    widget_control,wbonds,/destroy
           ;    widget_control,wimage,/destroy
@@ -1669,10 +1667,6 @@ CorrelationLengthSeed=0
           end else begin
           ;    widget_control,wbonds,/destroy
           ;    widget_control,wimage,/destroy
-          if (windowsclosed eq 1) then begin ;4194304 is 2048x2048
-            widget_control,wbenergy,/destroy
-            widget_control,wcombinedenerg,/destroy
-       endif
           end
           end
           end
@@ -1684,13 +1678,9 @@ CorrelationLengthSeed=0
            if (windowsclosed eq 0) then begin
             widget_control,wbonds,/destroy
             widget_control,wimage,/destroy
-              widget_control,wbangle,/destroy
-          endif
+        endif
 
          endif
-
-
-
 
        endfor ; main loop that reads each input file
 ; MASTER LOOP ENDS
@@ -1713,10 +1703,10 @@ if (do_angle_histogram eq 'yes') then begin
        endfor
        free_lun,u
 
-print,'total time:',systime(1)-time0,'elapsed seconds'
+print,'total time:',systime(1)-time0,'elapsed seconds = '
 
 endif else begin
-print, 'No opened images.'
+print, 'no opened images'
 endelse
 
 
