@@ -2,7 +2,7 @@
 ;This program is supposed to read an image file, determine the sphere positions,
 ;do the triangulation and generate the orientation field
 
-; MAIN PROGRAM CHanged this line for test by chris
+; MAIN PROGRAM
 
 ; Search for current work area to find code changes in progress
 ; USAGE notes (1/31/2006, by Matt Trawick)
