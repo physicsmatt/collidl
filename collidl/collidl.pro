@@ -1132,9 +1132,10 @@ smoothbcosangle=0
        ; Writes out and prompts for the desired file name
 
        pathos=''
-       Read, pathos, Prompt='File Path?'
-       Print, pathos
-       openw,u,pathos,/get_lun
+       ;Read, pathos, Prompt='File Path?'
+       ;Print, pathos
+       openw,u,strmid(fs[0],0,strlen(fs[0])-4)+'bonds.dat',/get_lun
+       ;openw,u,pathos,/get_lun
        sampling=2; The decimation rate in getting the bonds
 
        printf,u,sampling
