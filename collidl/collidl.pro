@@ -113,7 +113,7 @@
 
 
 
-pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,simu=simu,stay=stay,wait=wait,twomicron=twomicron,unfilt=unfilt,noimage=noimage, onemicron=onemicron, hardsphere=hardsphere, filtered=filtered
+pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait,unfilt=unfilt,noimage=noimage, hardsphere=hardsphere, filtered=filtered
 
     ;*****************************************************
 
@@ -292,18 +292,6 @@ time0=systime(1)
          endelse
             print,'using sphere size',sphere_diameter
           ; parameters for the sphere locator (obsolete)
-          if (keyword_set(simu)) then begin
-              sphere_diameter=8
-          endif
-
-          if (keyword_set(twomicron)) then begin
-              sphere_diameter=6
-          endif
-
-          if (keyword_set(onemicron)) then begin
-              sphere_diameter=7
-          endif
-
 
           ; locate the centers of the spheres
           ; these are (C) John Crocker http://glinda.lrsm.upenn.edu/~weeks/idl/
@@ -1131,11 +1119,7 @@ smoothbcosangle=0
 
        ; Writes out and prompts for the desired file name
 
-       pathos=''
-       ;Read, pathos, Prompt='File Path?'
-       ;Print, pathos
        openw,u,strmid(fs[0],0,strlen(fs[0])-4)+'bonds.dat',/get_lun
-       ;openw,u,pathos,/get_lun
        sampling=2; The decimation rate in getting the bonds
 
        printf,u,sampling
