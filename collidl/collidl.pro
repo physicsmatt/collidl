@@ -50,7 +50,7 @@
 ;;      -Windows only version.  Relies on Virtual Memory, rather than IDL Pixmap for greater range
 ;
 ;
-;   On a final note, the /hardspheres and /noimage switches are UNTESTED in this version (due to
+;   On a final note, the /hardsphere switch is UNTESTED in this version (due to
 ;   no available testing data), and it is unknown at this time if they are broken.
 ;
 ;   Feasible maximum image size in this version is 4096x4096, seems regardless of scale.
@@ -107,13 +107,9 @@
 ;      -Windows only version.  Relies on Virtual Memory, rather than IDL Pixmap for greater range
 ;
 ;
-;   On a final note, the /hardspheres and /noimage switches are UNTESTED in this version (due to
-;   no available testing data), and it is unknown at this time if they are broken.
-;
 
 
-
-pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait,unfilt=unfilt,noimage=noimage, hardsphere=hardsphere, filtered=filtered
+pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait,unfilt=unfilt,hardsphere=hardsphere, filtered=filtered
 
     ;*****************************************************
 
@@ -134,7 +130,6 @@ pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,stay=s
        ;
        ;
        ; Untested Switches:
-       ;     /noimage : gets the vertices from a user routine rather than from a file (currently untested!)
        ;     /hardsphere : to use with the hardsphere simu (currently untested!)
        ;
        ;
