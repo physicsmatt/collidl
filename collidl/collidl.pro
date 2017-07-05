@@ -136,35 +136,33 @@ pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,stay=s
 
        ; These are various switches used to control the behaviour of the
        ; program
-       ; 0 = do it, 1 = don't
-       ; CAREFUL, this is different from the truth value in C !
-
+       ; 1 = do it, 0 = don't
 
        ; all of these are old ways of doing correlations, either not
        ; reliabe or way too slow
-       translatecorr=1 ; calculate correlations by the image-translation technique
-       directcorr=1 ; calculate correlations directly
-       ffcorr=1 ; do the Fourier transform trick to get correlations
-       brutecorr=1 ; do the brute force calculations in IDL.
-       disccorr=1 ; locate dislocations and calculate their distribution function
+       translatecorr=0 ; calculate correlations by the image-translation technique
+       directcorr=0 ; calculate correlations directly
+       ffcorr=0 ; do the Fourier transform trick to get correlations
+       brutecorr=0 ; do the brute force calculations in IDL.
+       disccorr=0 ; locate dislocations and calculate their distribution function
 
        ; this is the latest trick, works great
-       Ccorr=0   ;Preps the data for the external c-program to do the
+       Ccorr=1   ;Preps the data for the external c-program to do the
          ; the correlation calculations fast. Best way so far. By far.
 
 
 
-       Gcorr=1 ; spawn an external c-program (called Grobcor) which does
+       Gcorr=0 ; spawn an external c-program (called Grobcor) which does
          ; the translational correlation calculations fast.
          ; Best way so far. By far.
 
 
-       gofr=1; whether to do radial distributions g(r)
-       do_bonds=0; whether to make the smoothed angle field
+       gofr=0; whether to do radial distributions g(r)
+       do_bonds=1; whether to make the smoothed angle field
 
-       do_force=1; whether to draw the force field.
+       do_force=0; whether to draw the force field.
 
-       showdiscbefore=0; whether to display the
+       showdiscbefore=1; whether to display the
           ; disclinations before drawing dislocations
        do_angle_histogram = 'yes'  ;'yes' or 'no' for whether to output angle histogram file
        do_postscript_defects = 'yes' ;'yes' or 'no' for whether to output postscript file for disclinations, dislocations.
@@ -360,7 +358,7 @@ ns=0
 
 
 
-          if ((do_force eq 0) OR (do_bonds eq 0)) then origimg=readimage(0)  ;only used in do_force
+          if ((do_force eq 1) OR (do_bonds eq 1)) then origimg=readimage(0)  ;only used in do_force
 
           if (keyword_set(unfilt)) then begin
               dataunfilt=reverse(dataunfilt,2)
@@ -463,7 +461,7 @@ data1=0
          print, "The Bondlength = ", bondslength
 
        ;This only allows bondsenergy to be created if it is going to be used.
-         if (keyword_set(do_force) eq 0) then begin
+         if (keyword_set(do_force) eq 1) then begin
             bondsenergy=fltarr(MAX_BOND_NUMBER)  ;unsure if this line is needed.  Is this
                                    ;just a remnant of c?
           bondsenergy=(bondsl-bondslength)^2.0   ;only is used later if do_force is 0
@@ -478,7 +476,7 @@ data1=0
          disc5=0 ; # inbounds 5s, total
          disc7=0 ; # inbounds 7s, total
 
-       if (showdiscbefore eq 0) then begin
+       if (showdiscbefore eq 1) then begin
          for i1=long(0),nvertices-1 do begin
 
 
@@ -666,7 +664,7 @@ inbounds=0
          ;output the bond image in the TIFF format.
          saveimage, strmid(fs[i],0,strlen(fs[i])-4)+'bonds.tif',/tiff
          ;will use this for the overlaying of the images
-         if ((do_force eq 0) OR (do_bonds eq 0)) then bondsimg=readimage(0)
+         if ((do_force eq 1) OR (do_bonds eq 1)) then bondsimg=readimage(0)
 
        ; good trick :  total(bound) = 2*#dislocations
          Summary_of_Data[4,i]=total(bound)/2
@@ -674,7 +672,7 @@ inbounds=0
 bound=0 ;never used again
 
 
-       if (disccorr eq 0) then begin
+       if (disccorr eq 1) then begin
 
          print, "Found ", disccount, " disclocations"
 
@@ -758,7 +756,7 @@ bound=0 ;never used again
 
 
 ;gofr g(r)
-       if (gofr eq 0) then begin
+       if (gofr eq 1) then begin
          grsize=300 ; Size for the g(r) plot
          grscan=10; grscan^2 is the number of averaged vertices
          grplaces=fltarr(grscan^2); gives a bond in each of those squares
@@ -843,7 +841,7 @@ bound=0 ;never used again
 
 
 
-       if (do_bonds eq 0) then begin
+       if (do_bonds eq 1) then begin
 
          bondsx=bondsx(0:bondcount-1)
          bondsy=bondsy(0:bondcount-1)
@@ -944,12 +942,12 @@ smoothbcosangle=0
        btriangles=0 ; btriangles gets created in do_force and do_bonds conditionals only!
        end
        imagesize=0
-       if ((brutecorr eq 1) and (Ccorr eq 1)) then bondsangle=0 ;isn't used later if so.
+       if ((brutecorr eq 0) and (Ccorr eq 0)) then bondsangle=0 ;isn't used later if so.
 
 
 
 
-       if (do_force eq 0) then begin
+       if (do_force eq 1) then begin
 
          bondsenergy=bondsenergy(0:bondcount-1)
          bondsx=bondsx(0:bondcount-1)
@@ -1062,7 +1060,7 @@ smoothbcosangle=0
 
 
 ;brutecorr
-       if (Brutecorr eq 0) then begin
+       if (Brutecorr eq 1) then begin
          ;Trying to do it directly...
 
          fcorr=fltarr(floor(sqrt(1.0*!xss*!xss+1.0*!yss*!yss)))
@@ -1104,7 +1102,7 @@ smoothbcosangle=0
 
 ;ccorr
        ;********************
-    if (Ccorr eq 0) then begin
+    if (Ccorr eq 1) then begin
 
        ; Writes out and prompts for the desired file name
 
@@ -1188,7 +1186,7 @@ smoothbcosangle=0
 
 ;Gcorr
        ;********************
-    if (Gcorr eq 0) then begin
+    if (Gcorr eq 1) then begin
 
 
 
@@ -1343,7 +1341,7 @@ smoothbcosangle=0
 
 ;translatecorr
        ;********************     Trying to redo the autocorrelation by the image-displacement technique
-       if(translatecorr eq 0) then begin
+       if(translatecorr eq 1) then begin
          f1corr=fltarr(500)
          n1corr=fltarr(500)
 
@@ -1439,7 +1437,7 @@ smoothbcosangle=0
          !yss=255;
 
 
-       if (ffcorr eq 0) then begin
+       if (ffcorr eq 1) then begin
          ;create the exp^6*imaginary*theta array
          OrderParameter=complex(cos(6.0*smoothbangle),sin(6.0*smoothbangle))
 
@@ -1515,7 +1513,7 @@ smoothbcosangle=0
 
 
 ;direct
-    if (directcorr eq 0) then begin
+    if (directcorr eq 1) then begin
        pi=3.141592
        dimplot=256
        sampling=8 ; the size of the sampling square for direct correlations
@@ -1619,7 +1617,7 @@ CorrelationLengthSeed=0
 
          if (keyword_set(stay) eq 0) then begin
           ; destroy all the windows created
-          if (do_force eq 0) then begin
+          if (do_force eq 1) then begin
               widget_control,wbenergy,/destroy
               widget_control,wcombinedenerg,/destroy
           ;    widget_control,wbonds,/destroy
@@ -1628,13 +1626,13 @@ CorrelationLengthSeed=0
 
 
           end else begin
-          if (do_bonds eq 0) then begin
+          if (do_bonds eq 1) then begin
               widget_control,wbangle,/destroy
               widget_control,wcombined,/destroy
           ;    widget_control,wbonds,/destroy
           ;    widget_control,wimage,/destroy
           end else begin
-          if (Gcorr eq 0) then begin
+          if (Gcorr eq 1) then begin
           ;    widget_control,wbonds,/destroy
               widget_control,wimage,/destroy
           ;    widget_control,wGfft,/destroy
@@ -1647,7 +1645,7 @@ CorrelationLengthSeed=0
           if (keyword_set(unfilt)) then begin
               widget_control,wimageunfilt,/destroy
           end
-          if ((Ccorr eq 0) or (disccorr eq 0)) then wdelete,1
+          if ((Ccorr eq 1) or (disccorr eq 1)) then wdelete,1
 
            if (windowsclosed eq 0) then begin
             widget_control,wbonds,/destroy
