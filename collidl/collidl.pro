@@ -167,6 +167,7 @@ pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,st
        do_angle_histogram = 1  ;whether to output angle histogram file
        do_postscript_defects = 1 ;whether to output postscript file for disclinations, dislocations.
        save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
+       save_filtered_image =1 ; whether to save bandpass filtered version of input image 
     ;********************************************************
 
        ; in order to redraw windows
@@ -290,8 +291,11 @@ time0=systime(1)
           if (keyword_set(filtered)) then begin
            data1=feature(data,sphere_diameter)
           endif else begin
-            data1=feature(bpass(data,1,sphere_diameter),sphere_diameter)
-           endelse
+            data_filtered=bpass(data,1,sphere_diameter)
+            data1=feature(data_filtered,sphere_diameter)
+            if (save_filtered_image eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'filtered.tif',bytscl(data_filtered)
+            data_filtered=!NULL ;reallocate memory
+          endelse
 
           ns=size(data)   ;the same as imagesize?
 
