@@ -132,12 +132,6 @@ pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,stay=s
        ; Untested Switches:
        ;     /hardsphere : to use with the hardsphere simu (currently untested!)
        ;
-       ;
-       ; Old Switches:
-       ;    /big : replaced by the functionality of the scale keyword. (no longer available)
-       ;    /simu : sets the sphere-locator parameters to Dan Vega's simulation size (obsolete: use spheresize)
-       ;    /twomicron : sets the parameters for 2-micron picture (obsolete: use spheresize)
-       ;    /onemicron : sets the parameters for 1-micron picture (obsolete: use spheresize)
     ;*****************************************************
 
        ; These are various switches used to control the behaviour of the
