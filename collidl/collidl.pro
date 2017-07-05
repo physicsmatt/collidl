@@ -166,6 +166,7 @@ pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,st
           ; disclinations before drawing dislocations
        do_angle_histogram = 1  ;whether to output angle histogram file
        do_postscript_defects = 1 ;whether to output postscript file for disclinations, dislocations.
+       save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
     ;********************************************************
 
        ; in order to redraw windows
@@ -935,7 +936,7 @@ smoothbcosangle=0
 ;      tv, angimg1,true=3
 
 ;      print,'Writing angle TIFF file'
-         write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'smooth.tif',bytscl(smoothbangle,MAX= !pi/3,MIN=0)
+        if (save_bw_angle_tif eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'smooth.tif',bytscl(smoothbangle,MAX= !pi/3,MIN=0)
 
 
        bedges=0 ; bedges gets created in do_force and do_bonds conditionals only!
