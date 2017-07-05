@@ -217,17 +217,20 @@ time0=systime(1)
 
 ;For Hardsphere only
          if (keyword_set(hardsphere)) then begin
-          openr,33,fs(i)
-          readf,33,nvertices
+          openr,u,fs(i), /get_lun
+          readf,u,nvertices
           data3=intarr(3,nvertices)
           data1=intarr(3,nvertices+1)
-          readf,33,data3
+          readf,u,data3
           data1[*,1:*]=data3
           data3=0
           DEFSYSV, '!xss',479.0
           DEFSYSV, '!yss',959.0
 ;          DEFSYSV, '!xss',1.0*max(data1[0,*])
 ;          DEFSYSV, '!yss',1.0*max(data1[1,*])
+          close,u
+          free_lun,u
+
 
          end else begin
 
