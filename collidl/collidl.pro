@@ -109,7 +109,7 @@
 ;
 
 
-pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait,unfilt=unfilt,hardsphere=hardsphere, filtered=filtered
+pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait,unfilt=unfilt,hardsphere=hardsphere, filtered=filtered
 
     ;*****************************************************
 
@@ -118,7 +118,7 @@ pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,stay=s
        ;        bandpass filter.  This causes it to skip the call to bpass() and can help with large
        ;        images that occupy too much memory for internal filtering to be accomplished along side
        ;        analysis.  In this case, external pre-filtering is a better option.
-       ;     /flip: tells IDL to invert the image colors before analyzing it.  May become standard if
+       ;     /invert: tells IDL to invert the image colors before analyzing it.  May become standard if
        ;       our procedure has this being used every run
        ;     /scale : if set using /scale, will automatically scale the image to 1024x1024.  If set using
        ;        scale=(number), then the number becomes the scale factor
@@ -164,8 +164,8 @@ pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,stay=s
 
        showdiscbefore=1; whether to display the
           ; disclinations before drawing dislocations
-       do_angle_histogram = 'yes'  ;'yes' or 'no' for whether to output angle histogram file
-       do_postscript_defects = 'yes' ;'yes' or 'no' for whether to output postscript file for disclinations, dislocations.
+       do_angle_histogram = 1  ;whether to output angle histogram file
+       do_postscript_defects = 1 ;whether to output postscript file for disclinations, dislocations.
     ;********************************************************
 
        ; in order to redraw windows
@@ -200,7 +200,7 @@ pro main,saveloc=saveloc,flip=flip,scale=scale,spheresize=sphere_diameter,stay=s
        Summary_of_Data=fltarr(10, n_elements(fs))
 print,fs
 
-    if (do_angle_histogram eq 'yes') then begin
+    if (do_angle_histogram eq 1) then begin
        angle_histogram = lonarr(60,n_elements(fs))
        endif
 
@@ -247,7 +247,7 @@ time0=systime(1)
 
           data=byte(bytscl(read_tiff(fs(i))));
           imagesize=size(data)
-          if (keyword_set(flip)) then begin
+          if (keyword_set(invert)) then begin
             data=255-temporary(data)
           endif
           xs=imagesize[1]
@@ -592,7 +592,7 @@ data1=0
          endfor
 
 
-if (do_postscript_defects eq 'yes') then begin
+if (do_postscript_defects eq 1) then begin
 
        openw,postscript_defects_unit,strmid(fs[0],0,strlen(fs[0])-4)+'postscript_defects.ps',/get_lun
        printf,postscript_defects_unit,'%!PS'
@@ -885,7 +885,7 @@ smoothbcosangle=0
 
          saveimage, strmid(fs[i],0,strlen(fs[i])-4)+'angle.tif',/tiff
 
-         if (do_angle_histogram eq 'yes') then begin
+         if (do_angle_histogram eq 1) then begin
              single_angle_histogram = histogram(smoothbangle,min =0,binsize = !PI/(3 * 60), nbins = 61)
           angle_histogram[*,i] = single_angle_histogram[0:59]
           angle_histogram[0,i] = temporary(angle_histogram[0,i]) + single_angle_histogram[60]
@@ -1658,7 +1658,7 @@ CorrelationLengthSeed=0
 ; MASTER LOOP ENDS
 
 print, 'DONE WITH BIG LOOP'
-if (do_angle_histogram eq 'yes') then begin
+if (do_angle_histogram eq 1) then begin
        openw,angle_histogram_unit,strmid(fs[0],0,strlen(fs[0])-4)+'angle_histogram.dat',/get_lun
        printf,format='(60I)',angle_histogram_unit,angle_histogram
        free_lun,angle_histogram_unit
