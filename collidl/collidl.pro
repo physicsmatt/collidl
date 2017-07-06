@@ -749,7 +749,7 @@ bound=0 ;never used again
          x=0
 
 
-         print,'The dislocation dislocation correlation length was ', A[1],'+/-',Sigma_a[1],' and its coefficient was', A[0],'+/-',Sigma_a[0]
+         print,'The dislocation correlation length was ', A[1],'+/-',Sigma_a[1],' and its coefficient was', A[0],'+/-',Sigma_a[0]
          print,'It required ', iter , ' iterations, chisq=',chisq
 
          Summary_of_Data[0,i]=A[1]
@@ -873,14 +873,12 @@ t0=systime(1)
          fftsmooth,bcosangle, smoothbcosangle, weights, long(bondlength);howmuch
          fftsmooth,bsinangle, smoothbsinangle, weights, long(bondlength);howmuch
 print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
-bcosangle=0
-bsinangle=0
+bcosangle=!NULL
+bsinangle=!NULL
 
          smoothbangle=!pi+float(atan(smoothbsinangle, smoothbcosangle))
          smoothbangle=smoothbangle/6   ; mark temporary
 ;      smoothbangle=smoothbangle-(!pi/3)*floor(smoothbangle*3/!pi)
-smoothbsinangle=0
-smoothbcosangle=0
 
 
          print, 'Displaying smoothed bond angle...'
@@ -888,10 +886,28 @@ smoothbcosangle=0
          y=replicate(1.,!xss+1)#findgen(!yss+1)
 ;      smoothbangle1=interpolate(smoothbangle,x/4.0,y/4.0,/cubic)
 
-         image1=colortable(reverse(smoothbangle,2), fs[i],9)
+         image1=generate_colortable(reverse(smoothbangle,2), fs[i],9)
          showimage,image1,3,wbangle
+         saveimage, strmid(fs[i],0,strlen(fs[i])-4)+'_oldangle.tif',/tiff
 
-         saveimage, strmid(fs[i],0,strlen(fs[i])-4)+'angle.tif',/tiff
+          smoothbangle=-((float(atan(smoothbsinangle, smoothbcosangle))) * 180.0 / !pi ) +180
+          smoothbsinangle=!NULL
+          smoothbcosangle=!NULL
+          HSV_array = replicate(1.0,3,!xss+1,!yss+1)
+          HSV_array[0,*,*]=smoothbangle
+          rgb_angle_image = replicate(0B,3,!xss+1,!yss+1)
+          color_convert, HSV_array, rgb_angle_image, /HSV_RGB
+
+          write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_angle.tif', rgb_angle_image, compression=1
+
+          ;rgb_angle_image=reverse(rgb_angle_image,3)
+          wBase = WIDGET_BASE(/COLUMN)
+          wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=!xss+1, YSIZE=!yss+1,/APP_SCROLL,retain=2)
+          WIDGET_CONTROL, wBase, /REALIZE
+          im_ang = image(rgb_angle_image, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
+          rgb_angle_image=!NULL
+
+         
 
          if (do_angle_histogram eq 1) then begin
              single_angle_histogram = histogram(smoothbangle,min =0,binsize = !PI/(3 * 60), nbins = 61)
@@ -1994,7 +2010,7 @@ return,255*(1+sin(index*2*!pi/255+2*!pi/3))/2
 end
 
 
-function colortable,verbose=verbose,data,fs,winid
+function generate_colortable,verbose=verbose,data,fs,winid
     if(keyword_set(verbose)) then begin
        fs=dialog_pickfile(get_path=ps)
        if strmid(strlowcase(fs(0)),strlen(fs(0))-3,3) ne 'tif' then readlist,fs(0),fs,path=ps else fs=[fs]
