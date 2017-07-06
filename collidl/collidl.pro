@@ -873,22 +873,8 @@ t0=systime(1)
          fftsmooth,bcosangle, smoothbcosangle, weights, long(bondlength);howmuch
          fftsmooth,bsinangle, smoothbsinangle, weights, long(bondlength);howmuch
 print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
-bcosangle=!NULL
-bsinangle=!NULL
-
-         smoothbangle=!pi+float(atan(smoothbsinangle, smoothbcosangle))
-         smoothbangle=smoothbangle/6   ; mark temporary
-;      smoothbangle=smoothbangle-(!pi/3)*floor(smoothbangle*3/!pi)
-
-
-         print, 'Displaying smoothed bond angle...'
-         x=findgen(!xss+1)#replicate(1.,!yss+1)
-         y=replicate(1.,!xss+1)#findgen(!yss+1)
-;      smoothbangle1=interpolate(smoothbangle,x/4.0,y/4.0,/cubic)
-
-         image1=generate_colortable(reverse(smoothbangle,2), fs[i],9)
-         showimage,image1,3,wbangle
-         saveimage, strmid(fs[i],0,strlen(fs[i])-4)+'_oldangle.tif',/tiff
+        bcosangle=!NULL
+        bsinangle=!NULL
 
           smoothbangle=-((float(atan(smoothbsinangle, smoothbcosangle))) * 180.0 / !pi ) +180
           smoothbsinangle=!NULL
@@ -900,13 +886,11 @@ bsinangle=!NULL
 
           write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_angle.tif', rgb_angle_image, compression=1
 
-          ;rgb_angle_image=reverse(rgb_angle_image,3)
+          rgb_angle_image=reverse(rgb_angle_image,3)
           wBase = WIDGET_BASE(/COLUMN)
           wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=!xss+1, YSIZE=!yss+1,/APP_SCROLL,retain=2)
           WIDGET_CONTROL, wBase, /REALIZE
           im_ang = image(rgb_angle_image, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
-          rgb_angle_image=!NULL
-
          
 
          if (do_angle_histogram eq 1) then begin
@@ -914,20 +898,18 @@ bsinangle=!NULL
           angle_histogram[*,i] = single_angle_histogram[0:59]
           angle_histogram[0,i] = temporary(angle_histogram[0,i]) + single_angle_histogram[60]
           endif
-         angimg=readimage(0)
          single_angle_histogram=0
 
-;      Now we have origimg, bondsimg, angimg to work with
+;      Now we have origimg, bondsimg, rgb_angle_image to work with
 
 
 
-         newimg=origimg*.5+angimg*.5
+         newimg=origimg*.5+rgb_angle_image*.5
 
          if(keyword_set(unfilt)) then begin
-          newimg=(origimg*.5+origimgunfilt*.5)*.7+angimg*.3
+          newimg=(origimg*.5+origimgunfilt*.5)*.7+rgb_angle_image*.3
          end
-         ;try,newimg
-         angimg=0
+         rgb_angle_image=!NULL
 
        if (imagesize[1]*imagesize[2] gt 4194304) then begin ;4194304 is 2048x2048
             widget_control,wbonds,/destroy
@@ -2008,55 +1990,6 @@ end
 function colorblue,index
 return,255*(1+sin(index*2*!pi/255+2*!pi/3))/2
 end
-
-
-function generate_colortable,verbose=verbose,data,fs,winid
-    if(keyword_set(verbose)) then begin
-       fs=dialog_pickfile(get_path=ps)
-       if strmid(strlowcase(fs(0)),strlen(fs(0))-3,3) ne 'tif' then readlist,fs(0),fs,path=ps else fs=[fs]
-       print,'Now doing: ',fs(0)
-       data1=read_tiff(fs(0))
-       fname=fs(0)
-    endif else begin
-       data1=data*255*3./(!pi)
-       fname=fs
-    endelse
-
-       n=size(data1);
-       dim1=n(1);
-       dim2=n(2);
-
-       image2=fltarr(3,dim1,dim2)
-       ;imrd=colorred(data1)
-       ;imgr=colorgreen(data1)
-       ;imbl=colorblue(data1)
-
-       r=[6*replicate(42,43),6*(42-indgen(42)),6*replicate(0,86),6*indgen(42),6*replicate(42,43)]
-       g=[6*replicate(0,86),6*indgen(42),6*replicate(42,43),6*replicate(42,43),6*(42-indgen(42))]
-       b=[6*indgen(42),6*replicate(42,43),6*replicate(42,43),6*(42-indgen(42)),6*replicate(0,86)]
-       imrd=r(data1)
-       imgr=g(data1)
-       imbl=b(data1)
-
-
-
-
-       image2(0,*,*)=imrd
-       image2(1,*,*)=imgr
-       image2(2,*,*)=imbl
-       image1=[[[imrd]],[[imgr]],[[imbl]]]
-       ;print,image
-       ;help,image1
-       return, image1
-
-
-;     tvscl,image1,true=3
-;     write_tiff, strmid(fname,0,strlen(fname)-4)+'color.tif', bytscl(image2),0
-;     smpltiff,strmid(fs[i],0,strlen(fs[i])-4)+'color.tif',bytscl(image1)
-
-end
-
-
 
 
 function sign_of, x
