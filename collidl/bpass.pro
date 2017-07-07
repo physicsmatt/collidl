@@ -35,7 +35,7 @@
 ;-
 function bpass, image, lnoise, lobject, field = field, noclip=noclip
 
-nf = n_elements(image(0,0,*))
+nf = n_elements(image[0,0,*])
 ;on_error, 2          ; go to caller on error
 
 b = float( lnoise )
@@ -66,10 +66,10 @@ endif
 res = float(image)
 ; do x and y convolutions
 for i = 0,nf-1 do begin
-    g = convol( float(image(*,*,i)), gx )
+    g = convol( float(image[*,*,i]), gx )
     g = convol( g, gy )
 
-    b = convol( float(image(*,*,i)), bx )
+    b = convol( float(image[*,*,i]), bx )
     b = convol( b, by )
 
     res(*,*,i) = g-b
