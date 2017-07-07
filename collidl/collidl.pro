@@ -907,7 +907,8 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
       w=window(/buffer,dimensions=[!xss+1,!yss+1])
       p1 = image(origimg, /overplot, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
       ;add annotations as below
-      p=plot(goodx,!yss-goody,/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_size=0.5,linestyle='none')
+      pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.5 ;at spheresize=6 on a 1024x1024 image, 0.5 was about right.
+      p=plot(goodx,!yss-goody,/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_size=pcircle_size,linestyle='none')
       img_circled_spheres = p1.CopyWindow(border=0,height=!yss+1)
       write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_spheres.tif', reverse(img_circled_spheres,2), compression=1
       w.close
@@ -945,8 +946,8 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
         ;add annotations as below
 
 
-        psym_size=0.4
-        pcircle_size =0.8
+        psym_size= float(sphere_diameter)/!yss * 1024 / 6 * 0.4 ;at spheresize=6 on a 1024x1024 image, 0.4 was about right. 
+        pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.75 
         disc_thick=3.0 * sf
         circle_thick=1.0 * sf
         fours=where(disc lt 5)
