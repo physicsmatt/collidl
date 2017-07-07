@@ -939,31 +939,33 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 
         ;In this section, we draw defects over a large image.
         ;first, open a window as a buffer, and draw things there.
-        w=window(/buffer,dimensions=[!xss+1,!yss+1])
-        p1 = image(newimg, /overplot, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
+        sf = 2; scale factor for the whole image
+        w=window(/buffer,dimensions=[sf*(!xss+1),sf*(!yss+1)])
+        p1 = image(rebin(newimg,3,sf*(!xss+1),sf*(!yss+1)), /overplot, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
         ;add annotations as below
 
 
         psym_size=0.4
         pcircle_size =0.8
-        disc_thick=3.0
+        disc_thick=3.0 * sf
+        circle_thick=1.0 * sf
         fours=where(disc lt 5)
-        p=plot(goodx[fours],!yss-goody[fours],/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_filled=1,sym_size=psym_size,linestyle='none')
+        p=plot(sf*goodx[fours],sf*(!yss-goody[fours]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_filled=1,sym_size=psym_size,linestyle='none')
         fives=where(disc eq 5)
-        p=plot(goodx[fives],!yss-goody[fives],/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_filled=1,sym_size=psym_size,linestyle='none')
+        p=plot(sf*goodx[fives],sf*(!yss-goody[fives]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_filled=1,sym_size=psym_size,linestyle='none')
         sevens=where(disc eq 7)
-        p=plot(goodx[sevens],!yss-goody[sevens],/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_filled=1,sym_size=psym_size,linestyle='none')
+        p=plot(sf*goodx[sevens],sf*(!yss-goody[sevens]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_filled=1,sym_size=psym_size,linestyle='none')
         eights=where(disc gt 7)
-        p=plot(goodx[eights],!yss-goody[eights],/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_filled=1,sym_size=psym_size,linestyle='none')
+        p=plot(sf*goodx[eights],sf*(!yss-goody[eights]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_filled=1,sym_size=psym_size,linestyle='none')
 
         unb_fours=where(unbounddisc eq -2)
-        p=plot(goodx[unb_fours],!yss-goody[unb_fours],/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_size=pcircle_size,linestyle='none')
+        p=plot(sf*goodx[unb_fours],sf*(!yss-goody[unb_fours]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
         unb_fives=where(unbounddisc eq -1)
-        p=plot(goodx[unb_fives],!yss-goody[unb_fives],/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_size=pcircle_size,linestyle='none')
+        p=plot(sf*goodx[unb_fives],sf*(!yss-goody[unb_fives]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
         unb_sevens=where(unbounddisc eq 1)
-        p=plot(goodx[unb_sevens],!yss-goody[unb_sevens],/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_size=pcircle_size,linestyle='none')
+        p=plot(sf*goodx[unb_sevens],sf*(!yss-goody[unb_sevens]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
         unb_eights=where(unbounddisc eq 2)
-        p=plot(goodx[unb_eights],!yss-goody[unb_eights],/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_size=pcircle_size,linestyle='none')
+        p=plot(sf*goodx[unb_eights],sf*(!yss-goody[unb_eights]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
 
         listedges=list()
         for i1=0L, nvertices-1 do begin
@@ -980,16 +982,16 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
         secondindex=indgen(listedges.count()/2)*2+1
         connections=transpose([[numverts],[firstindex],[secondindex]])
         connections=reform(connections,n_elements(connections))
-        p=polyline(goodx[listedges.toarray()],!yss-goody[listedges.toarray()],connectivity=connections,/data,/overplot, antialias=0,color=[255,255,0],thick=disc_thick)
+        p=polyline(sf*goodx[listedges.toarray()],sf*(!yss-goody[listedges.toarray()]), antialias = 0 ,connectivity=connections,/data,/overplot, color=[255,255,0],thick=disc_thick)
         
-        img_new_all = p1.CopyWindow(border=0,height=!yss+1)
+        img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
         write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
         w.close
 
         wBase = WIDGET_BASE(/COLUMN)
-        wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=!xss+1, YSIZE=!yss+1,/APP_SCROLL,retain=2)
+        wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=sf*(!xss+1), YSIZE=sf*(!yss+1),/APP_SCROLL,retain=2)
         WIDGET_CONTROL, wBase, /REALIZE
-        im_ang = image(img_new_all, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
+        im_ang = image(img_new_all, /current, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
         img_circled_spheres=!NULL
 
 
@@ -1684,7 +1686,7 @@ CorrelationLengthSeed=0
           end else begin
           if (do_bonds eq 1) then begin
               ;widget_control,wbangle,/destroy
-              widget_control,wcombined,/destroy
+          ;    widget_control,wcombined,/destroy
           ;    widget_control,wbonds,/destroy
           ;    widget_control,wimage,/destroy
           end else begin
