@@ -900,10 +900,24 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
           endif
          single_angle_histogram=0
 
+;In this new section, we will generate an image JUST showing where the spheres were found.
+      ;first, open a window as a buffer, and draw things there.
+      w=window(/buffer,dimensions=[!xss+1,!yss+1])
+      p1 = image(origimg, /overplot, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
+      ;add annotations as below
+      p=plot(goodx,!yss-goody,/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_size=0.5,linestyle='none')
+      img_circled_spheres = p1.CopyWindow(border=0,height=!yss+1)
+      write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_spheres.tif', reverse(img_circled_spheres,2), compression=1
+      w.close
+
+      wBase = WIDGET_BASE(/COLUMN)
+      wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=!xss+1, YSIZE=!yss+1,/APP_SCROLL,retain=2)
+      WIDGET_CONTROL, wBase, /REALIZE
+      im_ang = image(img_circled_spheres, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
+      img_circled_spheres=!NULL
+
+
 ;      Now we have origimg, bondsimg, rgb_angle_image to work with
-
-
-
          newimg=origimg*.5+rgb_angle_image*.5
 
          if(keyword_set(unfilt)) then begin
@@ -1633,7 +1647,7 @@ CorrelationLengthSeed=0
 
           end else begin
           if (do_bonds eq 1) then begin
-              widget_control,wbangle,/destroy
+              ;widget_control,wbangle,/destroy
               widget_control,wcombined,/destroy
           ;    widget_control,wbonds,/destroy
           ;    widget_control,wimage,/destroy
