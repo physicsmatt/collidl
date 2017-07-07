@@ -651,10 +651,12 @@ if (do_postscript_defects eq 1) then begin
        free_lun,postscript_defects_unit
        endif ;do_postscript_defects
 
-edges = 0
-unbounddisc=0
-disc=0 ;never used again
-inbounds=0
+;edges = 0
+;unbounddisc=0
+;disc=0 ;never used again
+;inbounds=0
+
+
 
 
          print, "Found total 5's and 7's : ", disc5, disc7
@@ -677,7 +679,7 @@ inbounds=0
        ; good trick :  total(bound) = 2*#dislocations
          Summary_of_Data[4,i]=total(bound)/2
 
-bound=0 ;never used again
+;bound=0 ;never used again
 
 
        if (disccorr eq 1) then begin
@@ -945,7 +947,8 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
          showimage,[[[newred]],[[newgreen]],[[newblue]]],3,wcombined
 
 
-         saveimage,strmid(fs[i],0,strlen(fs[i])-4)+'all.tif', /TIFF
+;         saveimage,strmid(fs[i],0,strlen(fs[i])-4)+'all.tif', /TIFF
+
 ;      nang=size(angimg)
 ;      angimg1=fltarr(nang[2],nang[3],3)
 ;      angimg1[*,*,0]=angimg[0,*,*]
@@ -956,6 +959,62 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 
 ;      print,'Writing angle TIFF file'
         if (save_bw_angle_tif eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'smooth.tif',bytscl(smoothbangle,MAX= !pi/3,MIN=0)
+
+        ;In this section, we draw defects over a large image.
+        ;first, open a window as a buffer, and draw things there.
+        w=window(/buffer,dimensions=[!xss+1,!yss+1])
+        p1 = image(newimg, /overplot, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
+        ;add annotations as below
+
+
+        psym_size=0.4
+        pcircle_size =0.8
+        disc_thick=3.0
+        fours=where(disc lt 5)
+        p=plot(goodx[fours],!yss-goody[fours],/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_filled=1,sym_size=psym_size,linestyle='none')
+        fives=where(disc eq 5)
+        p=plot(goodx[fives],!yss-goody[fives],/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_filled=1,sym_size=psym_size,linestyle='none')
+        sevens=where(disc eq 7)
+        p=plot(goodx[sevens],!yss-goody[sevens],/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_filled=1,sym_size=psym_size,linestyle='none')
+        eights=where(disc gt 7)
+        p=plot(goodx[eights],!yss-goody[eights],/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_filled=1,sym_size=psym_size,linestyle='none')
+
+        unb_fours=where(unbounddisc eq -2)
+        p=plot(goodx[unb_fours],!yss-goody[unb_fours],/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_size=pcircle_size,linestyle='none')
+        unb_fives=where(unbounddisc eq -1)
+        p=plot(goodx[unb_fives],!yss-goody[unb_fives],/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_size=pcircle_size,linestyle='none')
+        unb_sevens=where(unbounddisc eq 1)
+        p=plot(goodx[unb_sevens],!yss-goody[unb_sevens],/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_size=pcircle_size,linestyle='none')
+        unb_eights=where(unbounddisc eq 2)
+        p=plot(goodx[unb_eights],!yss-goody[unb_eights],/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_size=pcircle_size,linestyle='none')
+
+        listedges=list()
+        for i1=0L, nvertices-1 do begin
+          for j1=edges[i1],edges[i1+1]-1 do begin
+            ; collect angle data from the bond
+            if ((bound[j1]) and (i1 lt edges[j1])) then begin
+              listedges.add,i1
+              listedges.add,edges[j1]
+            endif
+          endfor
+        endfor
+        numverts=replicate(2,listedges.count()/2)
+        firstindex=indgen(listedges.count()/2)*2
+        secondindex=indgen(listedges.count()/2)*2+1
+        connections=transpose([[numverts],[firstindex],[secondindex]])
+        connections=reform(connections,n_elements(connections))
+        p=polyline(goodx[listedges.toarray()],!yss-goody[listedges.toarray()],connectivity=connections,/data,/overplot, antialias=0,color=[255,255,0],thick=disc_thick)
+        
+        img_new_all = p1.CopyWindow(border=0,height=!yss+1)
+        write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
+        w.close
+
+        wBase = WIDGET_BASE(/COLUMN)
+        wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=!xss+1, YSIZE=!yss+1,/APP_SCROLL,retain=2)
+        WIDGET_CONTROL, wBase, /REALIZE
+        im_ang = image(img_new_all, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
+        img_circled_spheres=!NULL
+
 
 
        bedges=0 ; bedges gets created in do_force and do_bonds conditionals only!
@@ -2356,11 +2415,4 @@ END
 ;This program is a script to extract the image from an app_scroll widget
 ;it works by grabbing portions of the window by TVRD
 
-pro getimage, base
 
-
-
-
-
-
-end
