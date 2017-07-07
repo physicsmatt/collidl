@@ -933,31 +933,8 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
         print,'test point'
 
 
-         newred=reform(newimg[0,*,*])
-         newgreen=reform(newimg[1,*,*])
-         newblue=reform(newimg[2,*,*])
-         newbred=reform(bondsimg[0,*,*])
-         newbgreen=reform(bondsimg[1,*,*])
-         newbblue=reform(bondsimg[2,*,*])
 
-         whatbondstokeep=where((rgbcolor(newbred,newbgreen,newbblue) ne !colorwhite) and (rgbcolor(newbred,newbgreen,newbblue) ne !colorbond))
-         newred[whatbondstokeep]=newbred[whatbondstokeep]
-         newgreen[whatbondstokeep]=newbgreen[whatbondstokeep]
-         newblue[whatbondstokeep]=newbblue[whatbondstokeep]
-         showimage,[[[newred]],[[newgreen]],[[newblue]]],3,wcombined
-
-
-;         saveimage,strmid(fs[i],0,strlen(fs[i])-4)+'all.tif', /TIFF
-
-;      nang=size(angimg)
-;      angimg1=fltarr(nang[2],nang[3],3)
-;      angimg1[*,*,0]=angimg[0,*,*]
-;      angimg1[*,*,1]=angimg[1,*,*]
-;      angimg1[*,*,2]=angimg[2,*,*]
-;      window,9
-;      tv, angimg1,true=3
-
-;      print,'Writing angle TIFF file'
+;      print,'Writing grayscale angle TIFF file'
         if (save_bw_angle_tif eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'smooth.tif',bytscl(smoothbangle,MAX= !pi/3,MIN=0)
 
         ;In this section, we draw defects over a large image.
