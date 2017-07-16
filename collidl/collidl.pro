@@ -189,6 +189,17 @@ pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,st
        W=fltarr(1000)
        W[*]=1
 
+       DEFSYSV, '!draw_recursively', 1
+       DEFSYSV, '!recursion_level',0L
+       DEFSYSV, '!max_recursion_level', 5000L
+       DEFSYSV, '!colordisc7' ,  rgbcolor(0,255,0) ; green
+       DEFSYSV, '!colordisc5' ,  rgbcolor(255,0,0); red
+       DEFSYSV, '!colordisc4' , rgbcolor(255,0,255) ; magenta
+       DEFSYSV, '!colordisc8' ,  rgbcolor(0,255,255) ; cyan
+       DEFSYSV, '!colordisloc' , rgbcolor(255,255,0) ; yellow
+       DEFSYSV, '!colorbond' , rgbcolor(0,0,255); blue
+       DEFSYSV, '!colorwhite' , rgbcolor(255,255,255) ; white
+
 
 ;     cd, "E:\matt\research\idl_trawick\simsph\w8.25_eta.4\smaller\trials1-9"
 ;     cd, "/home/angelscu/temp/081202/1.25"
@@ -310,20 +321,6 @@ time0=systime(1)
 
 ns=0
 
-
-
-         ;R+256L*(G+256L*B)
-; Why set this every time it runs?
-         DEFSYSV, '!draw_recursively', 1
-         DEFSYSV, '!recursion_level',0L
-         DEFSYSV, '!max_recursion_level', 5000L
-         DEFSYSV, '!colordisc7' ,  rgbcolor(0,255,0) ; green
-         DEFSYSV, '!colordisc5' ,  rgbcolor(255,0,0); red
-         DEFSYSV, '!colordisc4' , rgbcolor(255,0,255) ; magenta
-         DEFSYSV, '!colordisc8' ,  rgbcolor(0,255,255) ; cyan
-         DEFSYSV, '!colordisloc' , rgbcolor(255,255,0) ; yellow
-         DEFSYSV, '!colorbond' , rgbcolor(0,0,255); blue
-         DEFSYSV, '!colorwhite' , rgbcolor(255,255,255) ; white
 
          ; used to hold the cooordinates of the particles
 
