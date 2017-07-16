@@ -106,7 +106,7 @@
 ;
 
 
-pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait,unfilt=unfilt,filtered=filtered
+pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait,filtered=filtered
 
  ; Safe Switches :
  ;     /filtered : tells IDL that the image is already filtered, and does not need the additional
@@ -218,22 +218,6 @@ time0=systime(1)
         windowsclosed=0
 
 
-          if(keyword_set(unfilt)) then begin
-              unfilt1=strpos(fs[i],"fil")
-              if(unfilt1 eq -1) then begin
-                 print, "IF USED WITH /UNFILT, YOU MUST INPUT ONLY NAMES THAT CONTAIN FIL"
-                 return
-              end else begin
-                 unfiltname=strmid(fs[i],0,unfilt1)+strmid(fs[i],unfilt1+3,strlen(fs[i]))
-                 dataunfilt=read_tiff(unfiltname)
-              end
-              ;print, fs[i],"   ",unfiltname
-              ;stop
-          end
-
-
-          ;count=0
-
           data=byte(bytscl(read_tiff(fs(i))));
           imagesize=size(data)
           if (keyword_set(invert)) then begin
@@ -246,15 +230,9 @@ time0=systime(1)
             ; scale to 1024X1024
             if (scale eq 1) then begin
               data=Interpolate(data,findgen((1024/(xs*1.0))*xs)/(1024/(xs*1.0)),findgen((1024/(ys*1.0))*ys)/(1024/(ys*1.0)),/grid)
-              if (keyword_set(unfilt)) then begin
-                dataunfilt=Interpolate(dataunfilt,findgen((1024/(xs*1.0))*xs)/(1024/(xs*1.0)),findgen((1024/(ys*1.0))*ys)/(1024/(ys*1.0)),/grid)
-              endif
             endif else begin
             ; scale by scale(variable)
               data=Interpolate(data,findgen(scale*imagesize[1])/scale,findgen(scale*imagesize[2])/scale,/grid)
-              if (keyword_set(unfilt)) then begin
-                dataunfilt=Interpolate(dataunfilt,findgen(scale*imagesize[1])/scale,findgen(scale*imagesize[2])/scale,/grid)
-              endif
             endelse
               ;reset the image size if scaled
               imagesize=size(data)
@@ -296,7 +274,7 @@ time0=systime(1)
          goodsize = size(data1)
          goodx=fltarr(goodsize[2]-1)   ;probably exist until end, previously global
          goody=fltarr(goodsize[2]-1)   ;probably exist until end, previously global
-         goodsize=0
+         goodsize=!NULL
 
          print, "X,Y image size : ", !xss+1, !yss+1
 
@@ -315,17 +293,7 @@ time0=systime(1)
 
 
 
-
-
           if ((do_force eq 1) OR (do_bonds eq 1)) then origimg=readimage(0)  ;only used in do_force
-
-          if (keyword_set(unfilt)) then begin
-              dataunfilt=reverse(dataunfilt,2)
-              imgunfilt=[[[dataunfilt]],[[dataunfilt]],[[dataunfilt]]]
-              ; the showimage package is a really smart way of drawing a window
-              showimage,bytscl(imgunfilt,min=0,max=255),3,wimageunfilt
-               origimgunfilt=readimage(0)
-          end
 
        if (imagesize[1]*imagesize[2] gt 4194304) then begin ;4194304 is 2048x2048
          widget_control,wimage,/destroy
@@ -867,9 +835,6 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 ;      Now we have origimg, bondsimg, rgb_angle_image to work with
          newimg=origimg*.5+rgb_angle_image*.5
 
-         if(keyword_set(unfilt)) then begin
-          newimg=(origimg*.5+origimgunfilt*.5)*.7+rgb_angle_image*.3
-         end
          rgb_angle_image=!NULL
 
        if (imagesize[1]*imagesize[2] gt 4194304) then begin ;4194304 is 2048x2048
@@ -994,9 +959,6 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 
          newimg=origimg*.5+energimg*.5
 
-         if(keyword_set(unfilt)) then begin
-          newimg=(origimg*.5+origimgunfilt*.5)*.7+energimg*.3
-         end
          energimg=0  ;only exists in this method, so remove here
          ;try,newimg
 
@@ -1645,10 +1607,7 @@ CorrelationLengthSeed=0
           end
           end
           end
-          if (keyword_set(unfilt)) then begin
-              widget_control,wimageunfilt,/destroy
-          end
-          if ((Ccorr eq 1) or (disccorr eq 1)) then wdelete,1
+         if ((Ccorr eq 1) or (disccorr eq 1)) then wdelete,1
 
            if (windowsclosed eq 0) then begin
             widget_control,wbonds,/destroy
