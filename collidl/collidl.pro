@@ -377,13 +377,10 @@ time0=systime(1)
          nvertices=n_elements(data1[0,1:*])
          print, nvertices
 
+;Matt was fiddling with these next few lines to try to avoid an apparent vertex at (0,0)
          goodx[0:nvertices-1]=data1[0,1:*]
          goody[0:nvertices-1]=data1[1,1:*]
 
-
-;Matt was fiddling with these next few lines to try to avoid an apparent vertex at (0,0)
-goodx_ok=data1[0,1:*]
-goody_ok=data1[1,1:*]
        if (keyword_set(saveloc)) then begin
             openw,locationfile,strmid(fs[0],0,strlen(fs[0])-4)+'location_data.dat',/get_lun
             for LongIndex=0L, nvertices do begin
@@ -391,16 +388,12 @@ goody_ok=data1[1,1:*]
             endfor
             free_lun,locationfile
        endif
-data1=0
+data1=!NULL
          ; at the exit, edges will have a weird format, read idl help
          ; on "triangulate" - this is the main source of errors in code
-;      triangulate, goodx, goody, triangles, outermost, CONNECTIVITY = edges
-         triangulate, goodx_ok, goody_ok, triangles, outermost, CONNECTIVITY = edges
-    triangles=0
-    outermost=0
-    goodx_ok=0
-    goody_ok=0
-
+      triangulate, goodx, goody, triangles, outermost, CONNECTIVITY = edges
+    triangles=!NULL
+    outermost=!NULL
 
          areavertex=1.0*!xss*!yss/nvertices
          bondlength=sqrt(areavertex*4/sqrt(3))
