@@ -506,7 +506,7 @@ data1=!NULL
 
          endfor
 
-
+;--------------------------------------------------------
 if (do_postscript_defects eq 1) then begin
 
        openw,postscript_defects_unit,strmid(fs[0],0,strlen(fs[0])-4)+'postscript_defects.ps',/get_lun
@@ -557,19 +557,11 @@ if (do_postscript_defects eq 1) then begin
           endfor ;i1
        free_lun,postscript_defects_unit
        endif ;do_postscript_defects
-
-;edges = 0
-;unbounddisc=0
-;disc=0 ;never used again
-;inbounds=0
-
-
+;-------------------------------------------------------------
 
 
          print, "Found total 5's and 7's : ", disc5, disc7
          print, "Found total unbound 5's and 7's : ", unbound5, unbound7
-
-
 
 
          Summary_of_Data[2,i]=unbound5
@@ -588,7 +580,7 @@ if (do_postscript_defects eq 1) then begin
 
 ;bound=0 ;never used again
 
-
+;--------------------------------------------------------------
        if (disccorr eq 1) then begin
 
          print, "Found ", disccount, " disclocations"
@@ -665,14 +657,15 @@ if (do_postscript_defects eq 1) then begin
 
 
 
-       end
+       endif ;(disccorr eq 1)
+;--------------------------------------------------------------
          discx=0
          discy=0
          discangle=0
 
 
-
-;gofr g(r)
+;--------------------------------------------------------------
+        ;gofr g(r)
        if (gofr eq 1) then begin
          grsize=300 ; Size for the g(r) plot
          grscan=10; grscan^2 is the number of averaged vertices
@@ -751,11 +744,10 @@ if (do_postscript_defects eq 1) then begin
 
          saveimage, strmid(fs[i],0,strlen(fs[i])-4)+'gofr.tif', /tiff
 
-    end
-;gofr   g(r)
+    endif ;(gofr eq 1)
+    ;gofr   g(r)
 
-
-
+;--------------------------------------------------------------
 
 
        if (do_bonds eq 1) then begin
@@ -903,12 +895,16 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 
        bedges=0 ; bedges gets created in do_force and do_bonds conditionals only!
        btriangles=0 ; btriangles gets created in do_force and do_bonds conditionals only!
-       end
+       endif ;(do_bonds eq 1)
+;--------------------------------------------------------------
+
+
        imagesize=0
        if ((brutecorr eq 0) and (Ccorr eq 0)) then bondsangle=0 ;isn't used later if so.
 
 
 
+;--------------------------------------------------------------
 
        if (do_force eq 1) then begin
 
@@ -990,6 +986,7 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 
        bedges=0 ;created in do_force and do_bonds conditionals only!
        endif ;end of if (do_force eq 1)
+;--------------------------------------------------------------
        image1=0
        btriangles=0
        newimg=0
@@ -1018,8 +1015,8 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 
 
 
-
-;brutecorr
+;--------------------------------------------------------------
+        ;brutecorr
        if (Brutecorr eq 1) then begin
          ;Trying to do it directly...
 
@@ -1053,10 +1050,10 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
               ncorr[bondsd[jjj]]=ncorr[bondsd[jjj]]+1
           endfor
          endfor
-       endif
+       endif ;(Brutecorr eq 1)
        bondsd=0
        bondscorr=0
-;brutecorr
+;--------------------------------------------------------------
 
 
 
@@ -1134,13 +1131,14 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 ;       close,u
 ;
 ;       Summary_of_Data[1,i]=A[1]
-    endif
+    endif ;(Ccorr eq 1)
        bondsx=0
        bondsy=0
        dcorr=0
        fcorr=0
        ncorr=0
 ;ccorr
+;--------------------------------------------------------------
 
 
 
@@ -1182,8 +1180,8 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
          for Gj=-5,5 do begin
          for Gi=-5,5 do begin
           if(Gf[(Gw mod 41)+Gi+Gn[0]/2+GR[0]-20,Gw/41+Gn[1]/2+Gj+GR[1]-20] gt Gf[Gn[0]/2+(Gw mod 41)+GR[0]-20,Gn[1]/2+Gw/41+GR[1]-20]) then print, "Alarm,neighboring value higher ! "
-         end
-         end
+         endfor
+         endfor
          gr=0
          gf=0
          Grot=0
@@ -1193,7 +1191,7 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
                plots,G[Gk,0]+70, G[Gk,1]+70,color=1000L,/device,psym=3,thick=1,symsize=2
 
 
-       end
+       endfor
 
 
        Gfactors=1+(indgen(100)-50.)/250.0
@@ -1201,7 +1199,7 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 
        for Gkk=0,99 do begin
          Gdifs[Gkk]=Gscale(G,Gfactors[Gkk])
-       end
+       endfor
        Gmin=min(Gdifs,Gbestfactor)
        Gfact=Gfactors[Gbestfactor]
        print, "Gfact=",Gfact
@@ -1293,9 +1291,10 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
        ;Summary_of_Data[5,i]=A[0]
 
 
-    endif
+    endif ;(Gcorr eq 1)
     data=0
 ;Gcorr
+;--------------------------------------------------------------
 
 
 
@@ -1382,8 +1381,8 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
          Summary_of_Data[1,i]=A[1]
 
 
-       endif
-;translatecorr
+       endif  ;translatecorr
+;--------------------------------------------------------------
 
 
 
