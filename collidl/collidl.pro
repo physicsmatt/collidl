@@ -106,7 +106,7 @@
 ;
 
 
-pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait,filtered=filtered
+pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait
 
  ; Safe Switches :
  ;     /filtered : tells IDL that the image is already filtered, and does not need the additional
@@ -252,15 +252,10 @@ time0=systime(1)
           ;data2=bpass(data,1,sphere_diameter)
 
 
-          ;this removes the need for the memory hogging data2 and implements the /filtered switch
-          if (keyword_set(filtered)) then begin
-            data1=feature(data,sphere_diameter)
-          endif else begin
-            data_filtered=bpass(data,1,sphere_diameter)
-            data1=feature(data_filtered,sphere_diameter)
-            if (save_filtered_image eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'filtered.tif',bytscl(data_filtered)
-            data_filtered=!NULL ;reallocate memory
-          endelse
+          data_filtered=bpass(data,1,sphere_diameter)
+          data1=feature(data_filtered,sphere_diameter)
+          if (save_filtered_image eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'filtered.tif',bytscl(data_filtered)
+          data_filtered=!NULL ;reallocate memory
 
           DEFSYSV, '!xss',imagesize[1]-1   ;is this needed?
           DEFSYSV, '!yss',imagesize[2]-1   ;is this needed?
