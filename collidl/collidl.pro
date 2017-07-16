@@ -111,64 +111,61 @@
 
 pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait,unfilt=unfilt,hardsphere=hardsphere, filtered=filtered
 
-    ;*****************************************************
+ ; Safe Switches :
+ ;     /filtered : tells IDL that the image is already filtered, and does not need the additional
+ ;        bandpass filter.  This causes it to skip the call to bpass() and can help with large
+ ;        images that occupy too much memory for internal filtering to be accomplished along side
+ ;        analysis.  In this case, external pre-filtering is a better option.
+ ;     /invert: tells IDL to invert the image colors before analyzing it.  May become standard if
+ ;       our procedure has this being used every run
+ ;     /scale : if set using /scale, will automatically scale the image to 1024x1024.  If set using
+ ;        scale=(number), then the number becomes the scale factor
+ ;     /spheresize : set using the spheresize=(number), it sets the sphere_diameter variable,
+ ;        making /twomicron,/simu,/onemicron obsolete
+ ;     /stay : in order to keep the windows on the screen. Useful
+ ;        when working with only one file, a pain otherwise
+ ;     /wait : waits for 5 secs after each file processed
+ ;
+ ;
+ ; Untested Switches:
+ ;     /hardsphere : to use with the hardsphere simu (currently untested!)
+ ;
 
-       ; Safe Switches :
-       ;     /filtered : tells IDL that the image is already filtered, and does not need the additional
-       ;        bandpass filter.  This causes it to skip the call to bpass() and can help with large
-       ;        images that occupy too much memory for internal filtering to be accomplished along side
-       ;        analysis.  In this case, external pre-filtering is a better option.
-       ;     /invert: tells IDL to invert the image colors before analyzing it.  May become standard if
-       ;       our procedure has this being used every run
-       ;     /scale : if set using /scale, will automatically scale the image to 1024x1024.  If set using
-       ;        scale=(number), then the number becomes the scale factor
-       ;     /spheresize : set using the spheresize=(number), it sets the sphere_diameter variable,
-       ;        making /twomicron,/simu,/onemicron obsolete
-       ;     /stay : in order to keep the windows on the screen. Useful
-       ;        when working with only one file, a pain otherwise
-       ;     /wait : waits for 5 secs after each file processed
-       ;
-       ;
-       ; Untested Switches:
-       ;     /hardsphere : to use with the hardsphere simu (currently untested!)
-       ;
-    ;*****************************************************
+ ; These are various switches used to control the behaviour of the
+ ; program
+ ; 1 = do it, 0 = don't
 
-       ; These are various switches used to control the behaviour of the
-       ; program
-       ; 1 = do it, 0 = don't
+ ; all of these are old ways of doing correlations, either not
+ ; reliabe or way too slow
+ translatecorr=0 ; calculate correlations by the image-translation technique
+ directcorr=0 ; calculate correlations directly
+ ffcorr=0 ; do the Fourier transform trick to get correlations
+ brutecorr=0 ; do the brute force calculations in IDL.
+ disccorr=0 ; locate dislocations and calculate their distribution function
 
-       ; all of these are old ways of doing correlations, either not
-       ; reliabe or way too slow
-       translatecorr=0 ; calculate correlations by the image-translation technique
-       directcorr=0 ; calculate correlations directly
-       ffcorr=0 ; do the Fourier transform trick to get correlations
-       brutecorr=0 ; do the brute force calculations in IDL.
-       disccorr=0 ; locate dislocations and calculate their distribution function
-
-       ; this is the latest trick, works great
-       Ccorr=1   ;Preps the data for the external c-program to do the
-         ; the correlation calculations fast. Best way so far. By far.
+ ; this is the latest trick, works great
+ Ccorr=1   ;Preps the data for the external c-program to do the
+   ; the correlation calculations fast. Best way so far. By far.
 
 
 
-       Gcorr=0 ; spawn an external c-program (called Grobcor) which does
-         ; the translational correlation calculations fast.
-         ; Best way so far. By far.
+ Gcorr=0 ; spawn an external c-program (called Grobcor) which does
+   ; the translational correlation calculations fast.
+   ; Best way so far. By far.
 
 
-       gofr=0; whether to do radial distributions g(r)
-       do_bonds=1; whether to make the smoothed angle field
+ gofr=0; whether to do radial distributions g(r)
+ do_bonds=1; whether to make the smoothed angle field
 
-       do_force=0; whether to draw the force field.
+ do_force=0; whether to draw the force field.
 
-       showdiscbefore=1; whether to display the
-          ; disclinations before drawing dislocations
-       do_angle_histogram = 1  ;whether to output angle histogram file
-       do_postscript_defects = 1 ;whether to output postscript file for disclinations, dislocations.
-       save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
-       save_filtered_image =1 ; whether to save bandpass filtered version of input image 
-    ;********************************************************
+ showdiscbefore=1; whether to display the
+    ; disclinations before drawing dislocations
+ do_angle_histogram = 1  ;whether to output angle histogram file
+ do_postscript_defects = 1 ;whether to output postscript file for disclinations, dislocations.
+ save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
+ save_filtered_image =1 ; whether to save bandpass filtered version of input image 
+;********************************************************
 
        ; in order to redraw windows
        device,retain=1
@@ -243,7 +240,7 @@ time0=systime(1)
           free_lun,u
 
 
-         end else begin
+         end else begin ;hardsphere not set
 
           if(keyword_set(unfilt)) then begin
               unfilt1=strpos(fs[i],"fil")
@@ -272,20 +269,20 @@ time0=systime(1)
          if (keyword_set(scale)) then begin
             ; scale to 1024X1024
             if (scale eq 1) then begin
-        data=Interpolate(data,findgen((1024/(imagesize[1]*1.0))*imagesize[1])/(1024/(imagesize[1]*1.0)),findgen((1024/(imagesize[2]*1.0))*imagesize[2])/(1024/(imagesize[2]*1.0)),/grid)
-                if (keyword_set(unfilt)) then begin
- dataunfilt=Interpolate(dataunfilt,findgen((1024/(imagesize[1]*1.0))*imagesize[1])/(1024/(imagesize[1]*1.0)),findgen((1024/(imagesize[2]*1.0))*imagesize[2])/(1024/(imagesize[2]*1.0)),/grid)
-             endif
+              data=Interpolate(data,findgen((1024/(xs*1.0))*xs)/(1024/(xs*1.0)),findgen((1024/(ys*1.0))*ys)/(1024/(ys*1.0)),/grid)
+              if (keyword_set(unfilt)) then begin
+                dataunfilt=Interpolate(dataunfilt,findgen((1024/(xs*1.0))*xs)/(1024/(xs*1.0)),findgen((1024/(ys*1.0))*ys)/(1024/(ys*1.0)),/grid)
+              endif
             endif else begin
             ; scale by scale(variable)
-        data=Interpolate(data,findgen(scale*imagesize[1])/scale,findgen(scale*imagesize[2])/scale,/grid)
-                if (keyword_set(unfilt)) then begin
- dataunfilt=Interpolate(dataunfilt,findgen(scale*imagesize[1])/scale,findgen(scale*imagesize[2])/scale,/grid)
-                endif
+              data=Interpolate(data,findgen(scale*imagesize[1])/scale,findgen(scale*imagesize[2])/scale,/grid)
+              if (keyword_set(unfilt)) then begin
+                dataunfilt=Interpolate(dataunfilt,findgen(scale*imagesize[1])/scale,findgen(scale*imagesize[2])/scale,/grid)
+              endif
             endelse
-            ;reset the image size if scaled
-            imagesize=size(data)
-        endif
+              ;reset the image size if scaled
+              imagesize=size(data)
+         endif
 
 
 
@@ -303,7 +300,7 @@ time0=systime(1)
 
           ;this removes the need for the memory hogging data2 and implements the /filtered switch
           if (keyword_set(filtered)) then begin
-           data1=feature(data,sphere_diameter)
+            data1=feature(data,sphere_diameter)
           endif else begin
             data_filtered=bpass(data,1,sphere_diameter)
             data1=feature(data_filtered,sphere_diameter)
@@ -311,15 +308,10 @@ time0=systime(1)
             data_filtered=!NULL ;reallocate memory
           endelse
 
-          ns=size(data)   ;the same as imagesize?
+          DEFSYSV, '!xss',imagesize[1]-1   ;is this needed?
+          DEFSYSV, '!yss',imagesize[2]-1   ;is this needed?
 
-          ; Various global variables, like x-size, y-size, various colors
-          DEFSYSV, '!xss',ns[1]-1   ;is this needed?
-          DEFSYSV, '!yss',ns[2]-1   ;is this needed?
-
-         end ;ends else loop
-
-ns=0
+         end ;ends else loop, for when hardsphere was not set
 
 
          ; used to hold the cooordinates of the particles
@@ -342,11 +334,11 @@ ns=0
             for yhard=-hardsphererad,hardsphererad do begin
               data[(data1[0,*]+xhard)>(-1)<(!xss+1),(data1[1,*]+yhard)>(-1)<(!yss+1)] $
                 =data[(data1[0,*]+xhard)>(-1)<(!xss+1),(data1[1,*]+yhard)>(-1)<(!yss+1)]+255.0*exp(-0.15*(xhard*xhard+yhard*yhard)/hardsphererad*hardsphererad)
-            end
-          end
+            endfor
+          endfor
           data=bytscl(data)
-         end
-          data=reverse(data,2)
+         endif
+         data=reverse(data,2)
 
          ;why is this extra variable needed?  Can't that be falsified later to save memory?
           img=[[[data]],[[data]],[[data]]]
