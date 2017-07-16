@@ -50,9 +50,6 @@
 ;;      -Windows only version.  Relies on Virtual Memory, rather than IDL Pixmap for greater range
 ;
 ;
-;   On a final note, the /hardsphere switch is UNTESTED in this version (due to
-;   no available testing data), and it is unknown at this time if they are broken.
-;
 ;   Feasible maximum image size in this version is 4096x4096, seems regardless of scale.
 ;
 ;
@@ -109,7 +106,7 @@
 ;
 
 
-pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait,unfilt=unfilt,hardsphere=hardsphere, filtered=filtered
+pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait,unfilt=unfilt,filtered=filtered
 
  ; Safe Switches :
  ;     /filtered : tells IDL that the image is already filtered, and does not need the additional
@@ -126,9 +123,6 @@ pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,st
  ;        when working with only one file, a pain otherwise
  ;     /wait : waits for 5 secs after each file processed
  ;
- ;
- ; Untested Switches:
- ;     /hardsphere : to use with the hardsphere simu (currently untested!)
  ;
 
  ; These are various switches used to control the behaviour of the
@@ -223,24 +217,6 @@ time0=systime(1)
          print,'Now working on : ',fs(i)
         windowsclosed=0
 
-;For Hardsphere only
-         if (keyword_set(hardsphere)) then begin
-          openr,u,fs(i), /get_lun
-          readf,u,nvertices
-          data3=intarr(3,nvertices)
-          data1=intarr(3,nvertices+1)
-          readf,u,data3
-          data1[*,1:*]=data3
-          data3=0
-          DEFSYSV, '!xss',479.0
-          DEFSYSV, '!yss',959.0
-;          DEFSYSV, '!xss',1.0*max(data1[0,*])
-;          DEFSYSV, '!yss',1.0*max(data1[1,*])
-          close,u
-          free_lun,u
-
-
-         end else begin ;hardsphere not set
 
           if(keyword_set(unfilt)) then begin
               unfilt1=strpos(fs[i],"fil")
@@ -311,8 +287,6 @@ time0=systime(1)
           DEFSYSV, '!xss',imagesize[1]-1   ;is this needed?
           DEFSYSV, '!yss',imagesize[2]-1   ;is this needed?
 
-         end ;ends else loop, for when hardsphere was not set
-
 
          ; used to hold the cooordinates of the particles
 
@@ -326,18 +300,6 @@ time0=systime(1)
 
          print, "X,Y image size : ", !xss+1, !yss+1
 
-         ;For Hardsphere only
-         if(keyword_set(hardsphere)) then begin
-          data=bytarr(!xss+1,!yss+1)
-          hardsphererad=6
-          for xhard=-hardsphererad,hardsphererad do begin
-            for yhard=-hardsphererad,hardsphererad do begin
-              data[(data1[0,*]+xhard)>(-1)<(!xss+1),(data1[1,*]+yhard)>(-1)<(!yss+1)] $
-                =data[(data1[0,*]+xhard)>(-1)<(!xss+1),(data1[1,*]+yhard)>(-1)<(!yss+1)]+255.0*exp(-0.15*(xhard*xhard+yhard*yhard)/hardsphererad*hardsphererad)
-            endfor
-          endfor
-          data=bytscl(data)
-         endif
          data=reverse(data,2)
 
          ;why is this extra variable needed?  Can't that be falsified later to save memory?
