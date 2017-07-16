@@ -1088,7 +1088,7 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 
 
        bedges=0 ;created in do_force and do_bonds conditionals only!
-       end
+       endif ;end of if (do_force eq 1)
        image1=0
        btriangles=0
        newimg=0
