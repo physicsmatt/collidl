@@ -1392,8 +1392,9 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 
 ;ffcorr
 
-         !xss=255;
-         !yss=255;
+         xss_new=255 ;changed from !xss by Matt, 7/2017.  Seemed wrong to redefine !xss and !yss here.  
+         ;Note: I'm not even sure 255 is the right value; this could be an old mistake that never got fixed. --MT, 7/2017
+         yss_new=255;
 
 
        if (ffcorr eq 1) then begin
@@ -1425,8 +1426,8 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
          A=[Min_Subscript]
          ;OK, now call it
          yfit = CURVEFIT(X, Y, W(start:Nfit), A, SIGMA_A, FUNCTION_NAME = 'funct1')
-         window,0, xsize=!xss+1, ysize=!yss+1
-         plot, IntensityArray(0:!xss), xtitle='pixels', ytitle='g2(r)',psym=0
+         window,0, xsize=xss_new+1, ysize=yss_new+1
+         plot, IntensityArray(0:xss_new), xtitle='pixels', ytitle='g2(r)',psym=0
          ;plot out the determined function in a different color
          F = (EXP(-X/A[0]))
          ;F = A[0] * (EXP(-X/A[1]))
