@@ -149,8 +149,7 @@ pro main,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,st
 
 
  gofr=0; whether to do radial distributions g(r)
- do_bonds=1; whether to make the smoothed angle field
-
+ 
  do_force=0; whether to draw the force field.
 
  showdiscbefore=1; whether to display the
@@ -288,7 +287,7 @@ time0=systime(1)
 
 
 
-          if ((do_force eq 1) OR (do_bonds eq 1)) then origimg=readimage(0)  ;only used in do_force
+         origimg=readimage(0)  ;only used in do_force
 
        if (imagesize[1]*imagesize[2] gt 4194304) then begin ;4194304 is 2048x2048
          widget_control,wimage,/destroy
@@ -573,7 +572,7 @@ if (do_postscript_defects eq 1) then begin
          ;output the bond image in the TIFF format.
          saveimage, strmid(fs[i],0,strlen(fs[i])-4)+'bonds.tif',/tiff
          ;will use this for the overlaying of the images
-         if ((do_force eq 1) OR (do_bonds eq 1)) then bondsimg=readimage(0)
+         bondsimg=readimage(0)
 
        ; good trick :  total(bound) = 2*#dislocations
          Summary_of_Data[4,i]=total(bound)/2
@@ -750,8 +749,6 @@ if (do_postscript_defects eq 1) then begin
 ;--------------------------------------------------------------
 
 
-       if (do_bonds eq 1) then begin
-
          bondsx=bondsx(0:bondcount-1)
          bondsy=bondsy(0:bondcount-1)
          bondsangle=bondsangle(0:bondcount-1)
@@ -895,7 +892,6 @@ print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
 
        bedges=0 ; bedges gets created in do_force and do_bonds conditionals only!
        btriangles=0 ; btriangles gets created in do_force and do_bonds conditionals only!
-       endif ;(do_bonds eq 1)
 ;--------------------------------------------------------------
 
 
@@ -1586,12 +1582,6 @@ CorrelationLengthSeed=0
 
 
           end else begin
-          if (do_bonds eq 1) then begin
-              ;widget_control,wbangle,/destroy
-          ;    widget_control,wcombined,/destroy
-          ;    widget_control,wbonds,/destroy
-          ;    widget_control,wimage,/destroy
-          end else begin
           if (Gcorr eq 1) then begin
           ;    widget_control,wbonds,/destroy
               widget_control,wimage,/destroy
@@ -1609,7 +1599,6 @@ CorrelationLengthSeed=0
             widget_control,wimage,/destroy
         endif
 
-         endif
 
        endfor ; main loop that reads each input file
 ; MASTER LOOP ENDS
