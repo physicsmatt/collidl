@@ -316,8 +316,6 @@ data1=!NULL
          ; at the exit, edges will have a weird format, read idl help
          ; on "triangulate" - this is the main source of errors in code
       triangulate, goodx, goody, triangles, outermost, CONNECTIVITY = edges
-    triangles=!NULL
-    outermost=!NULL
 
          areavertex=1.0*!xss*!yss/nvertices
          bondlength=sqrt(areavertex*4/sqrt(3))
