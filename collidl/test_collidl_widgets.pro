@@ -193,5 +193,5 @@ PRO test_collidl_widgets
   data_inv = 255-data
   imglayer2 = image(data_inv, /current, NAME = 'FILTERED_IMG', margin=0);, /widgets)
   imglayer2.hide = 1
-  spheres = ellipse(100,200, major=10, /current, NAME = 'SPHERES', color='blue', /device)
+  spheres = ellipse(100,200, major=10, /current, NAME = 'SPHERES', color='blue', /data)
 END
