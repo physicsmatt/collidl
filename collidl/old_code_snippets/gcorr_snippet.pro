@@ -163,3 +163,53 @@ function Gscale,G,mult
 
 end
 
+;********************************************************
+;USED FOR FITTING THE EXPONENTIAL DECAY
+;********************************************************
+PRO funct, X, A, F, PDER
+
+  F = A[0] * (EXP(-X/A[1]))
+  ;If the function is called with four parameters,
+  ;calculate the partial derivatives:
+
+
+  IF N_PARAMS() GE 4 THEN BEGIN
+    ;PDER's column dimension is equal to the number of elements
+    ;in xi and its row dimension is equal to the number of
+    ;parameters in the function F:
+    pder = FLTARR(N_ELEMENTS(X), 2)
+    ;Compute the partial derivatives with respect to a0 and
+    ;place in the first row of PDER.
+    pder[*, 0] =  EXP(-X/A[1])
+    ;Compute the partial derivatives with respect to a1 and
+    ;place in the second row of PDER.
+
+    pder[*, 1] = (A[0]*X/(A[1]*A[1]))*EXP(-X/A[1])
+  ENDIF
+END
+
+
+
+PRO funct1, X, A, F, PDER
+
+  F =  (EXP(-X/A[0]))
+  ;If the function is called with four parameters,
+  ;calculate the partial derivatives:
+
+
+  IF N_PARAMS() GE 4 THEN BEGIN
+    ;PDER's column dimension is equal to the number of elements
+    ;in xi and its row dimension is equal to the number of
+    ;parameters in the function F:
+    pder = FLTARR(N_ELEMENTS(X), 1)
+    ;Compute the partial derivatives with respect to a0 and
+    ;place in the first row of PDER.
+    pder[*, 0] = (X/(A[0]*A[0]))* EXP(-X/A[0])
+    ;Compute the partial derivatives with respect to a1 and
+    ;place in the second row of PDER.
+
+  ENDIF
+END
+
+
+
