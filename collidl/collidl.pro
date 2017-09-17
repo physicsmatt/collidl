@@ -374,7 +374,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   showdiscbefore=1; whether to display the
   ; disclinations before drawing dislocations
   do_angle_histogram = 1  ;whether to output angle histogram file
-  do_postscript_defects = 1 ;whether to output postscript file for disclinations, dislocations.
   save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
   save_filtered_image =1 ; whether to save bandpass filtered version of input image
   ;********************************************************
@@ -634,70 +633,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       unbound5=0
       unbound7=0
 
-
-
-      ; now will draw the dislocations
-      for i1=long(0),nvertices-1 do begin
-        for j1=edges[i1],edges[i1+1]-1 do begin
-          ; collect angle data from the bond
-          if ((bound[j1]) and (i1 lt edges[j1])) then begin
-;            plots,[goodx[i1]/!xss,goodx[edges[j1]]/!xss],[1-goody[i1]/!yss,1-goody[edges[j1]]/!yss],/normal,color=!colordisloc,thick=2
-            discx[disccount]=(goodx[i1]+goodx[edges[j1]])/2
-            discy[disccount]=(goody[i1]+goody[edges[j1]])/2
-            discmult=1.0
-            if (disc[i1] gt disc[edges[j1]]) then discmult=-1.0
-            ang1=!pi+atan(discmult*(goody[i1]-goody[edges[j1]]),discmult*(goodx[i1]-goodx[edges[j1]]))
-            discangle[disccount]=ang1
-            disccount=disccount+1
-          endif
-        endfor
-      endfor
-
-      for i1=long(0),nvertices-1 do begin
-        ;the sizes for bound and unbound disclinations
-        discsize=1
-        if (unbounddisc[i1] ne 0) then discsize=2
-        if ((unbounddisc[i1] eq -1) and (disc[i1] eq 5) and (inbounds[i1])) then begin
-          unbound5=unbound5+1
-        end
-        if (disc[i1] lt 5) then begin
-          for discind=-discsize,discsize do begin
-;            plots,[(goodx[i1]-discsize)/!xss,(goodx[i1]+discsize)/!xss],[1-(goody[i1]+discind)/!yss,1-(goody[i1]+discind)/!yss],/normal,color=!colordisc4
-          endfor
-        end
-
-        if (disc[i1] eq 5) then begin
-          for discind=-discsize,discsize do begin
-;            plots,[(goodx[i1]-discsize)/!xss,(goodx[i1]+discsize)/!xss],[1-(goody[i1]+discind)/!yss,1-(goody[i1]+discind)/!yss],/normal,color=!colordisc5
-          endfor
-          if ((goodx[i1] gt inboundsmult*bondlength) and (goodx[i1] lt !xss-inboundsmult*bondlength) and (goody[i1] lt !yss-inboundsmult*bondlength) and (goody[i1] gt inboundsmult*bondlength)) then begin
-            disc5=disc5+1
-
-          end
-        end
-
-
-        if ((unbounddisc[i1] eq 1) and (disc[i1] eq 7) and (inbounds[i1])) then begin
-          unbound7=unbound7+1
-        end
-
-        if (disc[i1] gt 7) then begin
-          for discind=-discsize,discsize do begin
-;            plots,[(goodx[i1]-discsize)/!xss,(goodx[i1]+discsize)/!xss],[1-(goody[i1]+discind)/!yss,1-(goody[i1]+discind)/!yss],/normal,color=!colordisc8
-          endfor
-        end
-
-        if (disc[i1] eq 7) then begin
-          for discind=-discsize,discsize do begin
-;            plots,[(goodx[i1]-discsize)/!xss,(goodx[i1]+discsize)/!xss],[1-(goody[i1]+discind)/!yss,1-(goody[i1]+discind)/!yss],/normal,color=!colordisc7
-          endfor
-          if ((goodx[i1] gt inboundsmult*bondlength) and (goodx[i1] lt !xss-inboundsmult*bondlength) and (goody[i1] lt !yss-inboundsmult*bondlength) and (goody[i1] gt inboundsmult*bondlength)) then begin
-            disc7=disc7+1
-          end
-        end
-
-      endfor
-
 ;Now draw triangulation---------------------
       listedges=list()
       for i1=0L, nvertices-1 do begin
@@ -725,57 +660,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
 
       ;--------------------------------------------------------
-      if (do_postscript_defects eq 1) then begin
-
-        openw,postscript_defects_unit,strmid(fs[0],0,strlen(fs[0])-4)+'postscript_defects.ps',/get_lun
-        printf,postscript_defects_unit,'%!PS'
-        printf,postscript_defects_unit,'%%BoundingBox: ',0,0,imagesize[1],imagesize[2]
-        printf,postscript_defects_unit,'1.00 1.00 setlinewidth'
-        disc_circle_radius = 3
-        unbound_disc_circle_radius = 5
-        dislocation_linewidth = 3
-
-
-        for i1=long(0),nvertices-1 do begin
-          if (disc[i1] ne 6) then begin
-            ;print out all of the disclinations
-            if (disc[i1] lt 5) then printf,postscript_defects_unit,'1 0 1 setrgbcolor'
-            if (disc[i1] eq 5) then printf,postscript_defects_unit,'1 0 0 setrgbcolor'
-            if (disc[i1] eq 7) then printf,postscript_defects_unit,'0 1 0 setrgbcolor'
-            if (disc[i1] gt 7) then printf,postscript_defects_unit,'0 1 1 setrgbcolor'
-            printf,postscript_defects_unit,'newpath'
-            printf,postscript_defects_unit,goodx[i1],imagesize[2]-goody[i1],disc_circle_radius,' 0 360 arc'
-            printf,postscript_defects_unit,'closepath fill'
-            if (unbounddisc[i1] ne 0) then begin
-              ;now circle the unbound disclinations...
-              if (unbounddisc[i1] eq -2) then printf,postscript_defects_unit,'1 0 1 setrgbcolor'
-              if (unbounddisc[i1] eq -1) then printf,postscript_defects_unit,'1 0 0 setrgbcolor'
-              if (unbounddisc[i1] eq 1) then printf,postscript_defects_unit,'0 1 0 setrgbcolor'
-              if (unbounddisc[i1] eq 2) then printf,postscript_defects_unit,'0 1 1 setrgbcolor'
-              printf,postscript_defects_unit,'newpath'
-              printf,postscript_defects_unit,goodx[i1],imagesize[2]-goody[i1],unbound_disc_circle_radius,' 0 360 arc'
-              printf,postscript_defects_unit,'closepath stroke'
-            endif
-          endif
-        endfor ;i1
-        ; now draw the dislocations
-        printf,postscript_defects_unit,dislocation_linewidth,dislocation_linewidth,' setlinewidth'
-        printf,postscript_defects_unit,'1 1 0 setrgbcolor'
-
-        for i1=long(0),nvertices-1 do begin
-          for j1=edges[i1],edges[i1+1]-1 do begin
-            ; collect angle data from the bond
-            if ((bound[j1]) and (i1 lt edges[j1])) then begin
-              printf,postscript_defects_unit,'newpath'
-              printf,postscript_defects_unit, goodx[i1],imagesize[2]-goody[i1], ' moveto'
-              printf,postscript_defects_unit, goodx[edges[j1]],imagesize[2]-goody[edges[j1]], ' lineto'
-              printf,postscript_defects_unit,'closepath stroke'
-            endif
-          endfor ;j1
-        endfor ;i1
-        free_lun,postscript_defects_unit
-      endif ;do_postscript_defects
-      ;-------------------------------------------------------------
 
 
       print, "Found total 5's and 7's : ", disc5, disc7
