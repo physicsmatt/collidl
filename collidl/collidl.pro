@@ -356,19 +356,9 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   ; program
   ; 1 = do it, 0 = don't
 
-  ; all of these are old ways of doing correlations, either not
-  ; reliabe or way too slow
-  directcorr=0 ; calculate correlations directly
-
   ; this is the latest trick, works great
   Ccorr=1   ;Preps the data for the external c-program to do the
   ; the correlation calculations fast. Best way so far. By far.
-
-
-
-  Gcorr=0 ; spawn an external c-program (called Grobcor) which does
-  ; the translational correlation calculations fast.
-  ; Best way so far. By far.
 
 
   showdiscbefore=1; whether to display the
@@ -950,156 +940,6 @@ widg_win.select
 
 
 
-      ;Gcorr
-      ;********************
-      if (Gcorr eq 1) then begin
-
-
-
-
-        Gn=size(data) & Gn=Gn(1:Gn(0))
-        Gf=abs(shift(fft(data),Gn(0)/2,Gn(1)/2))
-        Gf(Gn(0)/2, Gn(1)/2)=0
-        bGf=Gf[Gn[0]/2-70:Gn[0]/2+70,Gn[1]/2-70:Gn[1]/2+70]
-        data=0
-        showimage,bytscl(bGf),1,wGfft
-
-        ;HEY!  THIS ISN'T USED
-        tmp=max(Gf,Gw)
-
-        Gx=(Gw mod Gn(0))-Gn(0)/2
-        Gy=Gw/Gn(0)-Gn(1)/2
-        G=fltarr(6,2)
-        bGf=0
-        tmp
-
-        for Gk=0,5 do begin
-          Gtheta=Gk*!pi/3.
-          Grot=[[cos(Gtheta),sin(Gtheta)],[-sin(Gtheta),cos(Gtheta)]]
-          GR=[Gx,Gy]#Grot
-          G[Gk,0]=GR[0]
-          G[Gk,1]=GR[1]
-          Gff=Gf[Gn[0]/2+GR[0]-20:Gn[0]/2+GR[0]+20, Gn[1]/2+GR[1]-20:Gn[1]/2+GR[1]+20]
-          Gmax=max(Gff,Gw)
-          G[Gk,0]=((Gw mod 41)+GR[0]-20)
-          G[Gk,1]=(Gw/41+GR[1]-20)
-          print,"Max value =", Gff[(Gw mod 41),Gw/41]
-          print, "Neighbouring values = "
-          for Gj=-5,5 do begin
-            for Gi=-5,5 do begin
-              if(Gf[(Gw mod 41)+Gi+Gn[0]/2+GR[0]-20,Gw/41+Gn[1]/2+Gj+GR[1]-20] gt Gf[Gn[0]/2+(Gw mod 41)+GR[0]-20,Gn[1]/2+Gw/41+GR[1]-20]) then print, "Alarm,neighboring value higher ! "
-            endfor
-          endfor
-          gr=0
-          gf=0
-          Grot=0
-
-          ;print,"The radius of the Fourier radius for peak ",Gk," is ", sqrt(G[Gk,0]^2+G[Gk,1]^2)
-
-          plots,G[Gk,0]+70, G[Gk,1]+70,color=1000L,/device,psym=3,thick=1,symsize=2
-
-
-        endfor
-
-
-        Gfactors=1+(indgen(100)-50.)/250.0
-        Gdifs=fltarr(100)
-
-        for Gkk=0,99 do begin
-          Gdifs[Gkk]=Gscale(G,Gfactors[Gkk])
-        endfor
-        Gmin=min(Gdifs,Gbestfactor)
-        Gfact=Gfactors[Gbestfactor]
-        print, "Gfact=",Gfact
-        ;stop
-        Gfactors=0
-        Gdifs=0
-
-        ;Gfact=1
-
-        Gxreal=Gx*2.0*!pi/Gn(0)
-        Gyreal=Gy*2.0*!pi*Gfact/Gn(1)
-        print, "Greal =  ", Gxreal, Gyreal
-        Gn=0
-        Gx=0
-        Gy=0
-
-
-        ;showimage,data,1,datanew
-        ;plots,[500,500+300./Gxreal], [500,500-300./Gyreal],color=!colorbond, thick=2,/device
-
-
-        ;stop
-
-        openw,u,'vertices.dat',/get_lun
-        sampling=5; The decimation rate in getting the bonds
-
-        printf,u,sampling
-        printf,u,nvertices
-        printf,u,1*Gxreal,-1*Gyreal
-
-        for iii=0L, nvertices-1 do begin
-          printf,u,goodx[iii],goody[iii]/Gfact
-        endfor
-        free_lun,u
-
-        spawn, './Grobcor'
-
-        Grobcor=read_ascii('Grobcor.dat');
-        dGcorr=transpose(Grobcor.field1[0,*])
-        nGcorr=transpose(Grobcor.field1[2,*])
-        fGcorr=transpose(Grobcor.field1[1,*])
-
-        dimplot=300
-
-
-        window,1,xsize=dimplot+1,ysize=dimplot
-        plot, dGcorr(0:dimplot), fGcorr(0:dimplot), xtitle='pixels', ytitle='gG(r)',psym=0
-        oplot, dGcorr(0:dimplot), bytscl(nGcorr(0:dimplot))/255.,psym=0, color=rgbcolor(0,255,0)
-        GCorrelationLenghTest=abs(fGcorr(0:dimplot)-exp(-1.0))
-        GCorrelationLengthSeed=min(GCorrelationLenghTest,GMin_Subscript)
-        print,'The direct correlation length seed was ', GMin_Subscript, ' .'
-
-
-        A=[1,GMin_Subscript]
-
-        ;A=[GMin_Subscript]
-
-
-        dimfit=200;
-        minfit=20;
-        iter=0
-        chisq=0
-        yfit = curvefit(dGcorr(minfit:dimfit), fGcorr(minfit:dimfit), nGcorr(minfit:dimfit), A, SIGMA_A, FUNCTION_NAME = 'funct', ITMAX=100, ITER=iter, chisq=chisq)
-        ;yfit = curvefit(dGcorr(minfit:dimfit), fGcorr(minfit:dimfit), nGcorr(minfit:dimfit), A, SIGMA_A, FUNCTION_NAME = 'funct1', ITMAX=100, ITER=iter, chisq=chisq)
-        X=indgen(dimfit)
-        ;plot out the determined function in a diffference color
-        ;F = (EXP(-X/A[0]))
-        F = A[0]*(EXP(-X/A[1]))
-        oplot,F,psym=0, color=254
-
-        ;blue equals 256*127
-
-
-        print,'The C  Gcorrelation length was ', A[1],'+/-',Sigma_a[1],' and its coefficient was', A[0],'+/-',Sigma_a[0]
-        ;print,'The imagetranslate correlation length was ', A[0],' and its coefficient was', ' N/A'
-        ;print,'The C  Gcorrelation length was ', A[0],'+/-',Sigma_a[0]
-        print,'It required ', iter , ' iterations, chisq=',chisq
-
-        print, 'Writing robcor file...'
-        openw,u,strmid(fs[i],0,strlen(fs[i])-4)+'Grobcor.dat',/get_lun
-
-        for LongIndex=0L,n_elements(nGcorr)-1 do begin
-          printf,u,dGcorr[LongIndex],fGcorr[LongIndex], nGcorr[LongIndex]
-        endfor
-        free_lun,u
-        close,u
-
-        Summary_of_Data[5,i]=A[1]
-        ;Summary_of_Data[5,i]=A[0]
-
-
-      endif ;(Gcorr eq 1)
       data=0
       ;Gcorr
       ;--------------------------------------------------------------
@@ -1107,101 +947,6 @@ widg_win.select
 
 
 
-      ; From here on the code is taken from Anglecorr.pro, and the point is to do the direct
-      ; correlation on the image itself rather than on the fourier transform
-
-
-      ;direct
-      if (directcorr eq 1) then begin
-        pi=3.141592
-        dimplot=256
-        sampling=8 ; the size of the sampling square for direct correlations
-        dimfit=64 ; the size of the picture over which correlation function is fitted
-        fitcutoff=4
-
-        n=size(smoothbangle);
-        dim1=n(1)
-        dim2=n(2)
-        n=0
-        dim=ceil(dim1*sqrt(2))
-        corr=fltarr(dim)
-        pairs=fltarr(dim)
-        ;help, corr
-
-        samplingdim1=dim1/sampling
-        samplingdim2=dim2/sampling
-        yvar1=0
-        yvar2=0
-
-        for j=1L,samplingdim1*samplingdim2-1 do begin
-          xvar1=sampling*(j mod samplingdim1)
-          yvar2=yvar1
-          yvar1=sampling*(j/samplingdim1)
-          ;if yvar2 ne yvar1 then begin
-          ;    print, 'Line # = ',yvar1
-          ;endif
-          for k=0L,j do begin
-
-            xvar2=sampling*(k mod samplingdim1)
-            yvar2=sampling*(k/samplingdim1)
-            d=round(sqrt((xvar1-xvar2)*(xvar1-xvar2)+(yvar1-yvar2)*(yvar1-yvar2)))
-            ;print, 'd=',d
-            corr[d]=temporary(corr[d])+cos(6*(smoothbangle[xvar1,yvar1]-smoothbangle[xvar2,yvar2]))
-            pairs[d]=temporary(pairs[d])+1;
-          endfor
-        endfor
-        smoothbangle=0
-
-        for j=0L,dim-1 do begin
-          if pairs[j] ne 0 then begin
-            corr[j]=temporary(corr[j])/pairs[j]
-          endif
-        endfor
-
-        CorrelationLenghTest=abs(corr-exp(-1.0))
-        CorrelationLengthSeed=min(CorrelationLenghTest,Min_Subscript)
-        print,'The direct correlation length seed was ', Min_Subscript, ' .'
-        CorrelationLenghTest=0
-        CorrelationLengthSeed=0
-
-        A=[1,Min_Subscript]
-        ;A=[Min_Subscript]
-
-
-
-        ;window,0,xsize=dim1/2+50,ysize=dim2/2+50
-        ;tvscl,angle,25,25
-
-        index=where(pairs)
-        ;restrict=where(index lt dimplot)
-        index=index[where(index lt dimplot)]
-
-
-        window,1,xsize=dimplot+1,ysize=dimplot+1
-        plot, index, corr[index], xtitle='pixels', ytitle='g6(r)',psym=0
-
-        ;restrict2=where((index lt dimfit) and (index gt fitcutoff))
-        index=index[where((index lt dimfit) and (index gt fitcutoff))]
-        yfit = curvefit(index, corr[index], pairs[index], A, SIGMA_A, FUNCTION_NAME = 'funct')
-
-        yfit = curvefit(index, corr[index], pairs[index], A, SIGMA_A, FUNCTION_NAME = 'funct', ITMAX=100, ITER=iter, chisq=chisq)
-        index=0
-        corr=0
-        pairs=0
-
-
-        X=indgen(dimplot)
-        ;plot out the determined function in a diffference color
-        ;F = (EXP(-X/A[0]))
-        F = A[0]*(EXP(-X/A[1]))
-        oplot,F,psym=0, color=254
-        ;blue equals 256*127
-
-        print,'The direct correlation length was ', A[1],' and its coefficient was', A[0],' iter=',iter,' chisq=',chisq
-        ;print,'The direct correlation length was ', A[0],' and its coefficient was', ' N/A'
-        Summary_of_Data[2,i]=A[1]
-
-      endif
       x=0
       smoothbangle=0
       ;direct
@@ -1216,27 +961,7 @@ widg_win.select
 
       if (keyword_set(stay) eq 0) then begin
         ; destroy all the windows created
-        if (do_force eq 1) then begin
-          widget_control,wbenergy,/destroy
-          widget_control,wcombinedenerg,/destroy
-          ;    widget_control,wbonds,/destroy
-          ;     widget_control,wimage,/destroy
-
-
-
-        end else begin
-          if (Gcorr eq 1) then begin
-            ;    widget_control,wbonds,/destroy
-            widget_control,wimage,/destroy
-            ;    widget_control,wGfft,/destroy
-          end else begin
-            ;    widget_control,wbonds,/destroy
-            ;    widget_control,wimage,/destroy
-          end
-        end
       end
-      if ((Ccorr eq 1) or (disccorr eq 1)) then wdelete,1
-
 
 
     endfor ; main loop that reads each input file
