@@ -148,3 +148,18 @@ if (Gcorr eq 1) then begin
 
 
 endif ;(Gcorr eq 1)
+
+
+function Gscale,G,mult
+  Gcopy=G
+  Gcopy[*,1]=G[*,1]*mult
+  Gradius=sqrt(Gcopy[*,1]^2.+Gcopy[*,0]^2.)
+  Grad=total(Gradius)/6
+  ;print, "Grad for mult=",mult," is ", Grad
+  result=0
+  Gdif=sqrt(total((Gradius-Grad)^2.)/6.)
+  ;print, "Gdif for mult=",mult," is ", Gdif
+  return,Gdif
+
+end
+

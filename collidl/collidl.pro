@@ -390,10 +390,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   DEFSYSV, '!draw_recursively', 1
   DEFSYSV, '!recursion_level',0L
   DEFSYSV, '!max_recursion_level', 5000L
-  DEFSYSV, '!colordisc7' ,  rgbcolor(0,255,0) ; green
-  DEFSYSV, '!colordisc5' ,  rgbcolor(255,0,0); red
-  DEFSYSV, '!colordisc4' , rgbcolor(255,0,255) ; magenta
-  DEFSYSV, '!colordisc8' ,  rgbcolor(0,255,255) ; cyan
   DEFSYSV, '!colordisloc' , rgbcolor(255,255,0) ; yellow
   DEFSYSV, '!colorbond' , rgbcolor(0,0,255); blue
   DEFSYSV, '!colorwhite' , rgbcolor(255,255,255) ; white
@@ -1369,17 +1365,4 @@ function rgbcolor,R,G,B
 
 end
 
-
-function Gscale,G,mult
-  Gcopy=G
-  Gcopy[*,1]=G[*,1]*mult
-  Gradius=sqrt(Gcopy[*,1]^2.+Gcopy[*,0]^2.)
-  Grad=total(Gradius)/6
-  ;print, "Grad for mult=",mult," is ", Grad
-  result=0
-  Gdif=sqrt(total((Gradius-Grad)^2.)/6.)
-  ;print, "Gdif for mult=",mult," is ", Gdif
-  return,Gdif
-
-end
 
