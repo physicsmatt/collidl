@@ -424,7 +424,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
     for i=0,n_elements(fs)-1 do begin
       close,/all
       print,'Now working on : ',fs(i)
-      windowsclosed=0
 
 
       data=byte(bytscl(read_tiff(fs(i))));
@@ -490,12 +489,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       data_filtered=!NULL ;reallocate memory
       filtered_img.hide=1
 
-      ;origimg=readimage(0)  ;only used in do_force
-
-;      if (imagesize[1]*imagesize[2] gt 4194304) then begin ;4194304 is 2048x2048
-;        widget_control,wimage,/destroy
-;        windowsclosed=1
-;      endif
 
       nvertices=n_elements(data1[0,1:*])
       print, nvertices
@@ -586,13 +579,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       bondslength=total(bondsl)/bondcount
       print, "The Bondlength = ", bondslength
 
-      ;This only allows bondsenergy to be created if it is going to be used.
-      if (keyword_set(do_force) eq 1) then begin
-        bondsenergy=fltarr(MAX_BOND_NUMBER)  ;unsure if this line is needed.  Is this
-        ;just a remnant of c?
-        bondsenergy=(bondsl-bondslength)^2.0   ;only is used later if do_force is 0
-      endif
-
       unbounddisc=disc-6; unbound disclinationality phew !
       bondsl=0
 
@@ -657,11 +643,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       ; Now we need to find the dislocations and calculate their correlations
 
-
-      ;output the bond image in the TIFF format.
-;      saveimage, strmid(fs[i],0,strlen(fs[i])-4)+'bonds.tif',/tiff
-      ;will use this for the overlaying of the images
-;      bondsimg=readimage(0)
 
       ; good trick :  total(bound) = 2*#dislocations
       Summary_of_Data[4,i]=total(bound)/2
@@ -833,24 +814,6 @@ widg_win.select
 
 
 
-      ; ********   Calculating the bond-bond correlation function
-
-
-      dimplot1=800
-
-
-      ;fcorr=fltarr(floor(sqrt(!xss*!xss+!yss*!yss)))  can be moved into the if, as ccorr reassigns
-      ;ncorr=fltarr(floor(sqrt(!xss*!xss+!yss*!yss)))  can be moved into the if, as ccorr reassigns
-
-
-
-      ;--------------------------------------------------------------
-      bondsd=0
-      bondscorr=0
-      ;--------------------------------------------------------------
-
-
-
       ;ccorr
       ;********************
       if (Ccorr eq 1) then begin
@@ -886,9 +849,6 @@ widg_win.select
 
 
       data=0
-      ;Gcorr
-      ;--------------------------------------------------------------
-
 
 
 
@@ -944,8 +904,6 @@ end
 
 
 
-
-
 ; **************************************************************************************
 ;
 ;
@@ -953,33 +911,6 @@ end
 ;
 ;
 ; **************************************************************************************
-
-
-
-
-
-
-pro try, newimg
-
-  newred=reform(newimg[0,*,*])
-  newgreen=reform(newimg[1,*,*])
-  newblue=reform(newimg[2,*,*])
-  showimage,[[[newred]],[[newgreen]],[[newblue]]],3,wcombined
-
-end
-
-
-function readimage, dummy
-  current_window = !d.window
-  xsize = !d.x_size
-  ysize = !d.y_size
-  ;window, /pixmap,/free, xsize=xsize, ysize=ysize, retain=1
-  ;device, copy=[0, 0, xsize, ysize, 0, 0, current_window]
-  image = tvrd(0,0,xsize,ysize,order=0,true=1)
-  ;wdelete, !d.window
-  wset, current_window
-  return,image
-end
 
 
 pro fftsmooth, input, output, weights, howmuch
@@ -1012,23 +943,6 @@ pro smooth, input, output, weights, howmuch
   endfor
   ;for greater speed, but not quite as fast as fftsmooth, consider:
   ;output=convol(input,weights)
-end
-
-
-
-
-
-
-function colorred,index
-  return,255*(1+sin(index*2*!pi/255))/2
-end
-
-function colorgreen,index
-  return,255*(1+sin(index*2*!pi/255-2*!pi/3))/2
-end
-
-function colorblue,index
-  return,255*(1+sin(index*2*!pi/255+2*!pi/3))/2
 end
 
 
