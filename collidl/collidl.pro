@@ -197,9 +197,19 @@ end
 function img_button_event_handler, event
   wDraw = WIDGET_INFO(event.top, FIND_BY_UNAME = 'DRAW')
   WIDGET_CONTROL, wDraw, GET_VALUE = w
-  if event.VALUE eq 'RAW' then p=w['RAW_IMG']
-  if event.VALUE eq 'FILTERED' then p=w['FILTERED']
-  p.hide= 1 - event.SELECT
+  if event.select eq 0 then return,0
+  if event.VALUE eq 'RAW' then begin
+    w['RAW_IMG'].hide = 0 
+    w['FILTERED_IMG'].hide = 1
+  endif
+  if event.VALUE eq 'FILTERED' then begin
+    w['RAW_IMG'].hide = 1 
+    w['FILTERED_IMG'].hide = 0
+  endif
+  if event.VALUE eq 'NONE' then begin
+    w['RAW_IMG'].hide = 1 
+    w['FILTERED_IMG'].hide = 1
+  endif
 end
 
 function annotation_button_event_handler, event
@@ -273,8 +283,8 @@ function create_collidl_widgets
   base2 = WIDGET_BASE(base1, /ROW, /ALIGN_CENTER)
 
   ; Create the action buttons.
-  bgroup_images = CW_BGROUP(base2, ['Raw','Filtered'], /COLUMN, /EXCLUSIVE, LABEL_TOP='Images', /FRAME, set_value=0, $
-    BUTTON_UVALUE=['RAW','FILTERED'], event_funct='img_button_event_handler')
+  bgroup_images = CW_BGROUP(base2, ['Raw','Filtered','None'], /ROW, /EXCLUSIVE, LABEL_TOP='Images', /FRAME, set_value=0, $
+    BUTTON_UVALUE=['RAW','FILTERED','NONE'], event_funct='img_button_event_handler')
   bgroup_annotations = CW_BGROUP(base2, ['Spheres','Triangulation','Defects','Orientation'], /ROW, /NONEXCLUSIVE, LABEL_TOP='Annotations', /FRAME, $
     BUTTON_UVALUE=['SPHERES','TRIANGULATION','DEFECTS','ORIENTATION'], event_funct='annotation_button_event_handler')
   done = WIDGET_BUTTON(base2, VALUE = 'Done', UVALUE = 'DONE')
