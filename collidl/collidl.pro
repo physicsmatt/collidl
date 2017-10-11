@@ -618,7 +618,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       connections=transpose([[numverts],[firstindex],[secondindex]])
       connections=reform(connections,n_elements(connections))
       triangulation=polyline(goodx[listedges.toarray()],goody[listedges.toarray()], antialias = 0 ,connectivity=connections,/data, $
-        /overplot, NAME = 'TRIANGULATION', color=[0,0,255],thick=disc_thick)
+        /overplot, NAME = 'TRIANGULATION', color=[0,0,255],thick=2)
 
  ;     img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
  ;     write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
