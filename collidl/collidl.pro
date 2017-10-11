@@ -160,8 +160,8 @@ function collidl_mouse_motion, w, X, Y, KeyMods
     yet_to_move = moveby - movedby
     kludgefact = (1/*w.uvalue.xyzscale)
     w['RAW_IMG'].translate, yet_to_move[0] * kludgefact, yet_to_move[1] * kludgefact, /device
-    w['SPHERES'].translate, yet_to_move[0] * kludgefact, yet_to_move[1] * kludgefact, /device
-    w['ORIENT_IMG'].translate, yet_to_move[0] * kludgefact, yet_to_move[1] * kludgefact, /device
+    ;w['SPHERES'].translate, yet_to_move[0] * kludgefact, yet_to_move[1] * kludgefact, /device
+    ;w['ORIENT_IMG'].translate, yet_to_move[0] * kludgefact, yet_to_move[1] * kludgefact, /device
     *w.uvalue.centerxy += yet_to_move
   endif
 end
@@ -171,27 +171,22 @@ function collidl_mouse_wheel, w, x, y, d, keymods
   ;print,x,y
   ;regular scroll should scroll image, eventually.  Not emplemented.
   ;control scroll zooms image;
-  img = w['RAW_IMG']
-  if (keymods eq 2) then begin ;actually it's a bit mask
+  ;if (keymods eq 2) then begin ;This is a bit mask: 2 corresponds to holding down CTRL.
     centerxy = *w.uvalue.centerxy
     if d gt 0 then scalefact = 1.5 ;zoom in
     if d lt 0 then scalefact = .6667 ;zoom out
+    *w.uvalue.xyzscale *= scalefact
     ;cursor position would be shifted by this much:
     shiftedby = ([x,y] - centerxy) * (scalefact - 1)
     ;print,shiftedby
-    w['RAW_IMG'].scale, scalefact, scalefact, scalefact
-    w['SPHERES'].scale, scalefact, scalefact, scalefact
-    w['ORIENT_IMG'].scale, scalefact, scalefact, scalefact
-    kludgefact = (1/*w.uvalue.xyzscale)
+    w['RAW_IMG'].scale, scalefact, scalefact, 1
+    kludgefact = (1.0/*w.uvalue.xyzscale)
     w['RAW_IMG'].translate, -shiftedby[0] * kludgefact, -shiftedby[1] * kludgefact, /device ;make correction, so area under cursor does not move with scale change
-    w['SPHERES'].translate, -shiftedby[0] * kludgefact, -shiftedby[1] * kludgefact, /device ;make correction, so area under cursor does not move with scale change
-    w['ORIENT_IMG'].translate, -shiftedby[0] * kludgefact, -shiftedby[1] * kludgefact, /device ;make correction, so area under cursor does not move with scale change
-    *w.uvalue.xyzscale *= scalefact
     *w.uvalue.centerxy -= shiftedby
     w['SPHERES'].sym_size *= scalefact
     w['SPHERES'].sym_thick = 1.712 * w['SPHERES'].sym_size
     w['TRIANGULATION'].thick *= scalefact
-  endif
+  ;endif
   return,0 ; skip default handling; no idea if this is really needed
 end
 
@@ -412,7 +407,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       angle_histogram = lonarr(60,n_elements(fs))
     endif
 
-    ; THE MASTER LOOP
 
     base1 = create_collidl_widgets()
     wDraw = WIDGET_INFO(base1, FIND_BY_UNAME = 'DRAW')
@@ -420,6 +414,8 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
     widg_win.select
 
     print,'number of files is',n_elements(fs)
+
+; THE MASTER LOOP------------------------------------------------------------------------------------------
     time0=systime(1)
     for i=0,n_elements(fs)-1 do begin
       close,/all
@@ -427,6 +423,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
 
       data=byte(bytscl(read_tiff(fs(i))));
+;      data=reverse(data,2)
       imagesize=size(data)
       if (keyword_set(invert)) then begin
         data=255-temporary(data)
@@ -481,10 +478,9 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       print, "X,Y image size : ", !xss+1, !yss+1
 
 
-      data=reverse(data,2)
       raw_img=image(data, /current, NAME = 'RAW_IMG', margin=0, zvalue=-.03, axis_style=0)
       raw_img.rotate, /reset
-      filtered_img=image(data_filtered, /current, NAME = 'FILTERED_IMG', margin=0, zvalue=-.02)
+      filtered_img=image(data_filtered, /overplot, NAME = 'FILTERED_IMG', margin=0, zvalue=-.02)
       filtered_img.rotate, /reset
       data_filtered=!NULL ;reallocate memory
       filtered_img.hide=1
@@ -509,7 +505,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ;In this new section, we will generate an image JUST showing where the spheres were found.
       widg_win.select
       pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.5 ;at spheresize=6 on a 1024x1024 image, 0.5 was about right.
-      spheres=plot(goodx,!yss-goody, /current, /overplot, NAME = 'SPHERES', antialias=0,symbol="o",sym_color=[0,255,0], $
+      spheres=plot(goodx,goody, /overplot, NAME = 'SPHERES', antialias=0,symbol="o",sym_color=[0,255,0], $
         sym_size=pcircle_size,linestyle='none', /data, axis_style=0)
       spheres.rotate, /reset
       ;      spheres2 = ellipse(100,200, major=10, /current, NAME = 'SPHERES', color='blue', /data)
@@ -621,8 +617,8 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       secondindex=indgen(listedges.count()/2, /long)*2+1
       connections=transpose([[numverts],[firstindex],[secondindex]])
       connections=reform(connections,n_elements(connections))
-      triangulation=polyline(goodx[listedges.toarray()],(!yss-goody[listedges.toarray()]), antialias = 0 ,connectivity=connections,/data, $
-        /current, /overplot, NAME = 'TRIANGULATION', color=[0,0,255],thick=disc_thick)
+      triangulation=polyline(goodx[listedges.toarray()],goody[listedges.toarray()], antialias = 0 ,connectivity=connections,/data, $
+        /overplot, NAME = 'TRIANGULATION', color=[0,0,255],thick=disc_thick)
 
  ;     img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
  ;     write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
@@ -699,7 +695,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 ;      im_ang = image(rgb_angle_image, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
 ;      im_ang = image(rgb_angle_image, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
 widg_win.select
-      orient_img=image(rgb_angle_image, /current, NAME = 'ORIENT_IMG', margin=0, transparency=50, zvalue=-.01, axis_style=0)
+      orient_img=image(rgb_angle_image, /overplot, NAME = 'ORIENT_IMG', margin=0, transparency=50, zvalue=-.01, axis_style=0)
       orient_img.rotate, /reset
       
 
