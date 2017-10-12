@@ -122,22 +122,48 @@ function collidl_keyboard, w, IsASCII, Character, KeyValue, X, Y, Press, Release
   if Release then return, 1
   if not isascii then return, 1
   if character ge 65 and character le 90 then character += 32B ;converts uppercase ascii to lowercase ascii
-  print,"key hit is ", character
+  ;print,"key hit is ", character
   inputstr = string(character)
-  WIDGET_CONTROL, w.uvalue.annotationwidget, get_value = ann_state
-  if inputstr eq 's' then begin
-    ann_state[0] = 1 - ann_state[0]
-    toggle_spheres, w, ann_state[0]
+  if strpos('sto', inputstr) ge 0 then begin ;character for changing annotations
+    print,"Hit a key for annotation selection...."
+    bgroup_annotations = WIDGET_INFO(w.uvalue.basewidget, find_by_uname='ANN_BUTTONS')
+    WIDGET_CONTROL, bgroup_annotations, get_value = ann_state
+    ;print, "current state of widget is:", ann_state
+    if inputstr eq 's' then begin
+      ann_state[0] = 1 - ann_state[0]
+      toggle_spheres, w, ann_state[0]
+      endif
+    if inputstr eq 't' then begin
+      ann_state[1] = 1 - ann_state[1]
+      toggle_triangulation, w, ann_state[1]
     endif
-  if inputstr eq 't' then begin
-    ann_state[1] = 1 - ann_state[1]
-    toggle_triangulation, w, ann_state[1]
+    if inputstr eq 'o' then begin
+      ann_state[3] = 1 - ann_state[3]
+      toggle_orientation, w, ann_state[3]
+    endif
+    WIDGET_CONTROL, bgroup_annotations, set_value = ann_state
   endif
-  if inputstr eq 'o' then begin
-    ann_state[3] = 1 - ann_state[3]
-    toggle_orientation, w, ann_state[3]
+  if strpos('rfn', inputstr) ge 0 then begin
+    ;print,"Hit a key for img selection...."
+    bgroup_images = WIDGET_INFO(w.uvalue.basewidget, find_by_uname='IMG_BUTTONS')
+    ;WIDGET_CONTROL, bgroup_images, get_value = img_state
+    ;print, "current state of widget is:", img_state
+    if inputstr eq 'r' then begin
+      WIDGET_CONTROL, bgroup_images, set_value = 0
+      w['RAW_IMG'].hide = 0
+      w['FILTERED_IMG'].hide = 1
+    endif
+    if inputstr eq 'f' then begin
+      WIDGET_CONTROL, bgroup_images, set_value = 1
+      w['RAW_IMG'].hide = 1
+      w['FILTERED_IMG'].hide = 0
+    endif
+    if inputstr eq 'n' then begin
+      WIDGET_CONTROL, bgroup_images, set_value = 2
+      w['RAW_IMG'].hide = 1
+      w['FILTERED_IMG'].hide = 1
+    endif
   endif
-  WIDGET_CONTROL, w.uvalue.annotationwidget, set_value = ann_state
 end
 
 function collidl_mouse_down, w, X, Y, Button, KeyMods, Clicks
@@ -284,9 +310,9 @@ function create_collidl_widgets
 
   ; Create the action buttons.
   bgroup_images = CW_BGROUP(base2, ['Raw','Filtered','None'], /ROW, /EXCLUSIVE, LABEL_TOP='Images', /FRAME, set_value=0, $
-    BUTTON_UVALUE=['RAW','FILTERED','NONE'], event_funct='img_button_event_handler')
+    BUTTON_UVALUE=['RAW','FILTERED','NONE'], event_funct='img_button_event_handler', UNAME='IMG_BUTTONS')
   bgroup_annotations = CW_BGROUP(base2, ['Spheres','Triangulation','Defects','Orientation'], /ROW, /NONEXCLUSIVE, LABEL_TOP='Annotations', /FRAME, $
-    BUTTON_UVALUE=['SPHERES','TRIANGULATION','DEFECTS','ORIENTATION'], event_funct='annotation_button_event_handler')
+    BUTTON_UVALUE=['SPHERES','TRIANGULATION','DEFECTS','ORIENTATION'], event_funct='annotation_button_event_handler', UNAME='ANN_BUTTONS')
   done = WIDGET_BUTTON(base2, VALUE = 'Done', UVALUE = 'DONE')
 
   wDraw = WIDGET_WINDOW(base1, UVALUE='draw', UNAME='DRAW', xsize=800, ysize=800)
@@ -320,7 +346,7 @@ function create_collidl_widgets
   w.SELECTION_CHANGE_HANDLER='collidl_selection_change' ;I don't understand when this function would be called.
   w.uvalue={ $
     basewidget:base1, $
-    annotationwidget:bgroup_annotations, $
+;    annotationwidget:bgroup_annotations, $
     mousedown:ptr_new(0), $
     xyzscale:ptr_new(1.0), $
     centerxy:ptr_new([400, 400]), $
