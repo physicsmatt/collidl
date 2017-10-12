@@ -113,10 +113,16 @@ pro toggle_triangulation, w, state
   w['TRIANGULATION'].hide = 1 - state
 end
 
+pro toggle_defects, w, state
+  w.refresh, /disable
+  foreach defplot, w.uvalue.defect_plot_list do defplot.hide=1-state
+  *w.uvalue.hide_defects = 1 - state
+  w.refresh
+end
+
 pro toggle_orientation, w, state
   w['ORIENT_IMG'].hide = 1 - state
 end
-
 
 function collidl_keyboard, w, IsASCII, Character, KeyValue, X, Y, Press, Release, KeyMods
   if Release then return, 1
@@ -124,8 +130,8 @@ function collidl_keyboard, w, IsASCII, Character, KeyValue, X, Y, Press, Release
   if character ge 65 and character le 90 then character += 32B ;converts uppercase ascii to lowercase ascii
   ;print,"key hit is ", character
   inputstr = string(character)
-  if strpos('sto', inputstr) ge 0 then begin ;character for changing annotations
-    print,"Hit a key for annotation selection...."
+  if strpos('stdo', inputstr) ge 0 then begin ;character for changing annotations
+    ;print,"Hit a key for annotation selection...."
     bgroup_annotations = WIDGET_INFO(w.uvalue.basewidget, find_by_uname='ANN_BUTTONS')
     WIDGET_CONTROL, bgroup_annotations, get_value = ann_state
     ;print, "current state of widget is:", ann_state
@@ -136,6 +142,10 @@ function collidl_keyboard, w, IsASCII, Character, KeyValue, X, Y, Press, Release
     if inputstr eq 't' then begin
       ann_state[1] = 1 - ann_state[1]
       toggle_triangulation, w, ann_state[1]
+    endif
+    if inputstr eq 'd' then begin
+      ann_state[2] = 1 - ann_state[2]
+      toggle_defects, w, ann_state[2]
     endif
     if inputstr eq 'o' then begin
       ann_state[3] = 1 - ann_state[3]
@@ -266,6 +276,7 @@ function annotation_button_event_handler, event
   if event.value eq 'SPHERES' then toggle_spheres, w, event.select
   if event.value eq 'TRIANGULATION' then toggle_triangulation, w, event.select
   if event.value eq 'ORIENTATION' then toggle_orientation, w, event.select
+  if event.value eq 'DEFECTS' then toggle_defects, w, event.select
 
   ;  wDraw = WIDGET_INFO(event.top, FIND_BY_UNAME = 'DRAW')
   ;  WIDGET_CONTROL, wDraw, GET_VALUE = w
@@ -348,7 +359,7 @@ function create_collidl_widgets
   xpad = basesize[0] - 640
   ypad = basesize[1] - 512
   WIDGET_CONTROL, base1, SET_UVALUE=[xpad,ypad]
-  WIDGET_CONTROL, bgroup_annotations, set_value=[1,1,0,1]
+  WIDGET_CONTROL, bgroup_annotations, set_value=[1,1,1,1]
   WIDGET_CONTROL, bgroup_images, set_value=0
   ;consider widget_control send_event?
 
@@ -369,6 +380,8 @@ function create_collidl_widgets
     centerxy:ptr_new([400, 400]), $
     movehomemousexy:ptr_new([0,0]), $
     movehomecenterxy:ptr_new([0,0]), $
+    defect_plot_list:list(), $ ;a list of plots of dislocations and disclinations
+    hide_defects:ptr_new(0), $
     rescale_list:list() $  ;see note at procedure "rescale_annotations"
   }
 
@@ -775,9 +788,6 @@ widg_win.select
 
       rgb_angle_image=!NULL
 
-      print,'test point'
-
-
 
       ;      print,'Writing grayscale angle TIFF file'
       if (save_bw_angle_tif eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'smooth.tif',bytscl(smoothbangle,MAX= !pi/3,MIN=0)
@@ -786,58 +796,25 @@ widg_win.select
       ;first, open a window as a buffer, and draw things there.
       sf = 2; scale factor for the whole image
       w=window(/buffer,dimensions=[sf*(!xss+1),sf*(!yss+1)])
+      w.uvalue={defect_plot_list:list(), rescale_list:list()}
       p1 = image(rebin(newimg,3,sf*(!xss+1),sf*(!yss+1)), /overplot, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
       ;add annotations as below
-
-
-      psym_size= float(sphere_diameter)/!yss * 1024 / 6 * 0.4 ;at spheresize=6 on a 1024x1024 image, 0.4 was about right.
-      pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.75
-      disc_thick=3.0 * sf
-      circle_thick=1.0 * sf
-      fours=where(disc lt 5)
-      p=plot(sf*goodx[fours],sf*(!yss-goody[fours]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_filled=1,sym_size=psym_size,linestyle='none')
-      fives=where(disc eq 5)
-      p=plot(sf*goodx[fives],sf*(!yss-goody[fives]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_filled=1,sym_size=psym_size,linestyle='none')
-      sevens=where(disc eq 7)
-      p=plot(sf*goodx[sevens],sf*(!yss-goody[sevens]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_filled=1,sym_size=psym_size,linestyle='none')
-      eights=where(disc gt 7)
-      p=plot(sf*goodx[eights],sf*(!yss-goody[eights]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_filled=1,sym_size=psym_size,linestyle='none')
-
-      unb_fours=where(unbounddisc eq -2)
-      p=plot(sf*goodx[unb_fours],sf*(!yss-goody[unb_fours]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
-      unb_fives=where(unbounddisc eq -1)
-      p=plot(sf*goodx[unb_fives],sf*(!yss-goody[unb_fives]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
-      unb_sevens=where(unbounddisc eq 1)
-      p=plot(sf*goodx[unb_sevens],sf*(!yss-goody[unb_sevens]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
-      unb_eights=where(unbounddisc eq 2)
-      p=plot(sf*goodx[unb_eights],sf*(!yss-goody[unb_eights]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
-
-      listedges=list()
-      for i1=0L, nvertices-1 do begin
-        for j1=edges[i1],edges[i1+1]-1 do begin
-          ; collect angle data from the bond
-          if ((bound[j1]) and (i1 lt edges[j1])) then begin
-            listedges.add,i1
-            listedges.add,edges[j1]
-          endif
-        endfor
-      endfor
-      numverts=replicate(2L,listedges.count()/2)
-      firstindex=indgen(listedges.count()/2, /long)*2
-      secondindex=indgen(listedges.count()/2, /long)*2+1
-      connections=transpose([[numverts],[firstindex],[secondindex]])
-      connections=reform(connections,n_elements(connections))
-;      p=polyline(sf*goodx[listedges.toarray()],sf*(!yss-goody[listedges.toarray()]), antialias = 0 ,connectivity=connections,/data,/overplot, color=[255,255,0],thick=disc_thick)
-      p=polyline(sf*goodx[listedges.toarray()],sf*(!yss-goody[listedges.toarray()]), antialias = 0 ,connectivity=connections,/data, color=[255,255,0],thick=disc_thick)
-
+      add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_diameter
+      add_dislocations_to_window, w, sf, goodx, goody, edges, bound, nvertices
       img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
       write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
       w.close
+
+      ;Now do the same thing on the main window.
+      widg_win.select
+      add_disclinations_to_window, widg_win, 1, goodx, goody, disc, unbounddisc, sphere_diameter
+      add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
 
       wBase = WIDGET_BASE(/COLUMN)
       wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=sf*(!xss+1), YSIZE=sf*(!yss+1),/APP_SCROLL,retain=2)
       WIDGET_CONTROL, wBase, /REALIZE
       im_ang = image(img_new_all, /current, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
+
       img_circled_spheres=!NULL
 
 
@@ -1227,9 +1204,81 @@ end
 
 
 function rgbcolor,R,G,B
-
   return,R+256L*(G+256L*B)
-
 end
 
+pro add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_diameter
 
+  psym_size= float(sphere_diameter)/!yss * 1024 / 6 * 0.4 ;at spheresize=6 on a 1024x1024 image, 0.4 was about right.
+  pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.75
+  disc_thick=3.0 * sf
+  circle_thick=1.0 * sf
+
+  fours=where(disc lt 5)
+  p=plot(sf*goodx[fours],sf*(goody[fours]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_filled=1,sym_size=psym_size,linestyle='none')
+  w.uvalue.rescale_list.add, list('sym_size',p, psym_size)
+  w.uvalue.defect_plot_list.add, p
+
+  fives=where(disc eq 5)
+  p=plot(sf*goodx[fives],sf*(goody[fives]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_filled=1,sym_size=psym_size,linestyle='none')
+  w.uvalue.rescale_list.add, list('sym_size',p, psym_size)
+  w.uvalue.defect_plot_list.add, p
+
+  sevens=where(disc eq 7)
+  p=plot(sf*goodx[sevens],sf*(goody[sevens]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_filled=1,sym_size=psym_size,linestyle='none')
+  w.uvalue.rescale_list.add, list('sym_size',p, psym_size)
+  w.uvalue.defect_plot_list.add, p
+
+  eights=where(disc gt 7)
+  p=plot(sf*goodx[eights],sf*(!yss-goody[eights]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_filled=1,sym_size=psym_size,linestyle='none')
+  w.uvalue.rescale_list.add, list('sym_size',p, psym_size)
+  w.uvalue.defect_plot_list.add, p
+
+  unb_fours=where(unbounddisc eq -2)
+  p=plot(sf*goodx[unb_fours],sf*(goody[unb_fours]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
+  w.uvalue.rescale_list.add, list('sym_size',p, pcircle_size)
+  w.uvalue.rescale_list.add, list('sym_thick',p, circle_thick)
+  w.uvalue.defect_plot_list.add, p
+
+  unb_fives=where(unbounddisc eq -1)
+  p=plot(sf*goodx[unb_fives],sf*(goody[unb_fives]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
+  w.uvalue.rescale_list.add, list('sym_size',p, pcircle_size)
+  w.uvalue.rescale_list.add, list('sym_thick',p, circle_thick)
+  w.uvalue.defect_plot_list.add, p
+
+  unb_sevens=where(unbounddisc eq 1)
+  p=plot(sf*goodx[unb_sevens],sf*(goody[unb_sevens]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
+  w.uvalue.rescale_list.add, list('sym_size',p, pcircle_size)
+  w.uvalue.rescale_list.add, list('sym_thick',p, circle_thick)
+  w.uvalue.defect_plot_list.add, p
+
+  unb_eights=where(unbounddisc eq 2)
+  p=plot(sf*goodx[unb_eights],sf*(goody[unb_eights]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
+  w.uvalue.rescale_list.add, list('sym_size',p, pcircle_size)
+  w.uvalue.rescale_list.add, list('sym_thick',p, circle_thick)
+  w.uvalue.defect_plot_list.add, p
+end
+
+pro add_dislocations_to_window, w, sf, goodx, goody, edges, bound, nvertices
+  disc_thick=3.0 * sf
+  listedges=list()
+  for i1=0L, nvertices-1 do begin
+    for j1=edges[i1],edges[i1+1]-1 do begin
+      ; collect angle data from the bond
+      if ((bound[j1]) and (i1 lt edges[j1])) then begin
+        listedges.add,i1
+        listedges.add,edges[j1]
+      endif
+    endfor
+  endfor
+  numverts=replicate(2L,listedges.count()/2)
+  firstindex=indgen(listedges.count()/2, /long)*2
+  secondindex=indgen(listedges.count()/2, /long)*2+1
+  connections=transpose([[numverts],[firstindex],[secondindex]])
+  connections=reform(connections,n_elements(connections))
+  ;      p=polyline(sf*goodx[listedges.toarray()],sf*(!yss-goody[listedges.toarray()]), antialias = 0 ,connectivity=connections,/data,/overplot, color=[255,255,0],thick=disc_thick)
+  p=polyline(sf*goodx[listedges.toarray()],sf*(goody[listedges.toarray()]), antialias = 0 ,connectivity=connections,/data, color=[255,255,0],thick=disc_thick)
+  w.uvalue.rescale_list.add, list('thick', p, disc_thick)
+  w.uvalue.defect_plot_list.add, p
+
+end
