@@ -192,6 +192,24 @@ function collidl_mouse_motion, w, X, Y, KeyMods
   endif
 end
 
+pro rescale_annotations, w
+  ;There are many annotation elements (triangulation, defects, circled spheres, etc.) for which the symbol or line size
+  ;does not scale automatically with the .scale method.  To make these values scale naturally (when using the scroll wheel,
+  ;for example), I keep track of the current xyzscale, and increase their values manually here.
+  ;Each time a plot is made with a property that needs to be scaled this way, I add an element to w.uvalue.rescale_list
+  ;of the following form: list('sym_size',spheres, 2.5).  (That is, the rescale_list is a list of lists, each with 3 elements.)
+  ;element[0] is the property name, element[1] is the plot or graphic object on which it occurs, and element[3] is the correct 
+  ;value of the property when the scale factor is just 1.
+  ;This procedure goes through the list and rescales the properties accordingly. 
+  foreach element, w.uvalue.rescale_list do begin
+    case element[0] of
+      'sym_size':   element[1].sym_size =  element[2] * *w.uvalue.xyzscale
+      'sym_thick':  element[1].sym_thick = element[2] * *w.uvalue.xyzscale
+      'thick':      element[1].thick =     element[2] * *w.uvalue.xyzscale
+    endcase
+  endforeach
+end
+
 function collidl_mouse_wheel, w, x, y, d, keymods
   ;print,"wheel: ", d
   ;print,x,y
@@ -199,6 +217,7 @@ function collidl_mouse_wheel, w, x, y, d, keymods
   ;control scroll zooms image;
   ;if (keymods eq 2) then begin ;This is a bit mask: 2 corresponds to holding down CTRL.
     centerxy = *w.uvalue.centerxy
+    w.refresh, /disable
     if d gt 0 then scalefact = 1.5 ;zoom in
     if d lt 0 then scalefact = .6667 ;zoom out
     *w.uvalue.xyzscale *= scalefact
@@ -209,9 +228,8 @@ function collidl_mouse_wheel, w, x, y, d, keymods
     kludgefact = (1.0/*w.uvalue.xyzscale)
     w['RAW_IMG'].translate, -shiftedby[0] * kludgefact, -shiftedby[1] * kludgefact, /device ;make correction, so area under cursor does not move with scale change
     *w.uvalue.centerxy -= shiftedby
-    w['SPHERES'].sym_size *= scalefact
-    w['SPHERES'].sym_thick = 1.712 * w['SPHERES'].sym_size
-    w['TRIANGULATION'].thick *= scalefact
+    rescale_annotations,w
+    w.refresh
   ;endif
   return,0 ; skip default handling; no idea if this is really needed
 end
@@ -346,12 +364,12 @@ function create_collidl_widgets
   w.SELECTION_CHANGE_HANDLER='collidl_selection_change' ;I don't understand when this function would be called.
   w.uvalue={ $
     basewidget:base1, $
-;    annotationwidget:bgroup_annotations, $
     mousedown:ptr_new(0), $
     xyzscale:ptr_new(1.0), $
     centerxy:ptr_new([400, 400]), $
     movehomemousexy:ptr_new([0,0]), $
-    movehomecenterxy:ptr_new([0,0]) $
+    movehomecenterxy:ptr_new([0,0]), $
+    rescale_list:list() $  ;see note at procedure "rescale_annotations"
   }
 
   ;  data = read_tiff('double.tif')
@@ -543,6 +561,8 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.5 ;at spheresize=6 on a 1024x1024 image, 0.5 was about right.
       spheres=plot(goodx,goody, /overplot, NAME = 'SPHERES', antialias=0,symbol="o",sym_color=[0,255,0], $
         sym_size=pcircle_size,linestyle='none', /data, axis_style=0)
+      widg_win.uvalue.rescale_list.add, list('sym_size', spheres, pcircle_size) 
+      widg_win.uvalue.rescale_list.add, list('sym_thick', spheres, 1.712 * pcircle_size)
       spheres.rotate, /reset
       ;      spheres2 = ellipse(100,200, major=10, /current, NAME = 'SPHERES', color='blue', /data)
 
@@ -655,6 +675,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       connections=reform(connections,n_elements(connections))
       triangulation=polyline(goodx[listedges.toarray()],goody[listedges.toarray()], antialias = 0 ,connectivity=connections,/data, $
         /overplot, NAME = 'TRIANGULATION', color=[0,0,255],thick=2)
+      widg_win.uvalue.rescale_list.add, list('thick', triangulation, 2)
 
  ;     img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
  ;     write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
