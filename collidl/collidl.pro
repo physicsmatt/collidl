@@ -805,15 +805,17 @@ widg_win.select
       write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
       w.close
 
+      ;These lines display the file just written:
+      ;wBase = WIDGET_BASE(/COLUMN)
+      ;wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=sf*(!xss+1), YSIZE=sf*(!yss+1),/APP_SCROLL,retain=2)
+      ;WIDGET_CONTROL, wBase, /REALIZE
+      ;im_ang = image(img_new_all, /current, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
+
       ;Now do the same thing on the main window.
       widg_win.select
       add_disclinations_to_window, widg_win, 1, goodx, goody, disc, unbounddisc, sphere_diameter
       add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
 
-      wBase = WIDGET_BASE(/COLUMN)
-      wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=sf*(!xss+1), YSIZE=sf*(!yss+1),/APP_SCROLL,retain=2)
-      WIDGET_CONTROL, wBase, /REALIZE
-      im_ang = image(img_new_all, /current, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
 
       img_circled_spheres=!NULL
 
@@ -1213,47 +1215,48 @@ pro add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_
   pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.75
   disc_thick=3.0 * sf
   circle_thick=1.0 * sf
+  props = {antialias:0, symbol:"o", linestyle:'none'}
 
   fours=where(disc lt 5)
-  p=plot(sf*goodx[fours],sf*(goody[fours]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_filled=1,sym_size=psym_size,linestyle='none')
+  p=plot(sf*goodx[fours],sf*(goody[fours]),/data,/overplot, sym_color=[255,0,255],sym_filled=1,sym_size=psym_size, _extra=props)
   w.uvalue.rescale_list.add, list('sym_size',p, psym_size)
   w.uvalue.defect_plot_list.add, p
 
   fives=where(disc eq 5)
-  p=plot(sf*goodx[fives],sf*(goody[fives]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_filled=1,sym_size=psym_size,linestyle='none')
+  p=plot(sf*goodx[fives],sf*(goody[fives]),/data,/overplot, sym_color=[255,0,0],sym_filled=1,sym_size=psym_size, _extra=props)
   w.uvalue.rescale_list.add, list('sym_size',p, psym_size)
   w.uvalue.defect_plot_list.add, p
 
   sevens=where(disc eq 7)
-  p=plot(sf*goodx[sevens],sf*(goody[sevens]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_filled=1,sym_size=psym_size,linestyle='none')
+  p=plot(sf*goodx[sevens],sf*(goody[sevens]),/data,/overplot, sym_color=[0,255,0],sym_filled=1,sym_size=psym_size, _extra=props)
   w.uvalue.rescale_list.add, list('sym_size',p, psym_size)
   w.uvalue.defect_plot_list.add, p
 
   eights=where(disc gt 7)
-  p=plot(sf*goodx[eights],sf*(!yss-goody[eights]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_filled=1,sym_size=psym_size,linestyle='none')
+  p=plot(sf*goodx[eights],sf*(!yss-goody[eights]),/data,/overplot, sym_color=[0,255,255],sym_filled=1,sym_size=psym_size, _extra=props)
   w.uvalue.rescale_list.add, list('sym_size',p, psym_size)
   w.uvalue.defect_plot_list.add, p
 
   unb_fours=where(unbounddisc eq -2)
-  p=plot(sf*goodx[unb_fours],sf*(goody[unb_fours]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,255],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
+  p=plot(sf*goodx[unb_fours],sf*(goody[unb_fours]),/data,/overplot, sym_color=[255,0,255],sym_size=pcircle_size,sym_thick=circle_thick, _extra=props)
   w.uvalue.rescale_list.add, list('sym_size',p, pcircle_size)
   w.uvalue.rescale_list.add, list('sym_thick',p, circle_thick)
   w.uvalue.defect_plot_list.add, p
 
   unb_fives=where(unbounddisc eq -1)
-  p=plot(sf*goodx[unb_fives],sf*(goody[unb_fives]),/data,/overplot, antialias=0,symbol="o",sym_color=[255,0,0],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
+  p=plot(sf*goodx[unb_fives],sf*(goody[unb_fives]),/data,/overplot, sym_color=[255,0,0],sym_size=pcircle_size, sym_thick=circle_thick, _extra=props)
   w.uvalue.rescale_list.add, list('sym_size',p, pcircle_size)
   w.uvalue.rescale_list.add, list('sym_thick',p, circle_thick)
   w.uvalue.defect_plot_list.add, p
 
   unb_sevens=where(unbounddisc eq 1)
-  p=plot(sf*goodx[unb_sevens],sf*(goody[unb_sevens]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,0],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
+  p=plot(sf*goodx[unb_sevens],sf*(goody[unb_sevens]),/data,/overplot, sym_color=[0,255,0],sym_size=pcircle_size, sym_thick=circle_thick, _extra=props)
   w.uvalue.rescale_list.add, list('sym_size',p, pcircle_size)
   w.uvalue.rescale_list.add, list('sym_thick',p, circle_thick)
   w.uvalue.defect_plot_list.add, p
 
   unb_eights=where(unbounddisc eq 2)
-  p=plot(sf*goodx[unb_eights],sf*(goody[unb_eights]),/data,/overplot, antialias=0,symbol="o",sym_color=[0,255,255],sym_size=pcircle_size,linestyle='none',sym_thick=circle_thick)
+  p=plot(sf*goodx[unb_eights],sf*(goody[unb_eights]),/data,/overplot, sym_color=[0,255,255],sym_size=pcircle_size, sym_thick=circle_thick, _extra=props)
   w.uvalue.rescale_list.add, list('sym_size',p, pcircle_size)
   w.uvalue.rescale_list.add, list('sym_thick',p, circle_thick)
   w.uvalue.defect_plot_list.add, p
@@ -1280,5 +1283,4 @@ pro add_dislocations_to_window, w, sf, goodx, goody, edges, bound, nvertices
   p=polyline(sf*goodx[listedges.toarray()],sf*(goody[listedges.toarray()]), antialias = 0 ,connectivity=connections,/data, color=[255,255,0],thick=disc_thick)
   w.uvalue.rescale_list.add, list('thick', p, disc_thick)
   w.uvalue.defect_plot_list.add, p
-
 end
