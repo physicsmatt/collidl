@@ -1,0 +1,18 @@
+To do list for collidl code
+
+High:
+
+Med:
+refine sphere location algorithm
+Get edge vertices from triangulation, not distance
+multiple files; /stay option
+Figure out warnings for multiply defined functions.
+Fix keyboard focus so keys work after clicking buttons.
+Allow full screen and resizing.
+Figure out why so slow, redo some switches
+Test on big images
+
+Low:
+Add scroll bars?
+Add translation limits?
+props = {current:1, color:'blue', linestyle:'dashed', symbol:'triangle', yrange:[0,50]}
