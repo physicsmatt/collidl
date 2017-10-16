@@ -138,7 +138,7 @@ function collidl_keyboard, w, IsASCII, Character, KeyValue, X, Y, Press, Release
     if inputstr eq 's' then begin
       ann_state[0] = 1 - ann_state[0]
       toggle_spheres, w, ann_state[0]
-      endif
+    endif
     if inputstr eq 't' then begin
       ann_state[1] = 1 - ann_state[1]
       toggle_triangulation, w, ann_state[1]
@@ -208,9 +208,9 @@ pro rescale_annotations, w
   ;for example), I keep track of the current xyzscale, and increase their values manually here.
   ;Each time a plot is made with a property that needs to be scaled this way, I add an element to w.uvalue.rescale_list
   ;of the following form: list('sym_size',spheres, 2.5).  (That is, the rescale_list is a list of lists, each with 3 elements.)
-  ;element[0] is the property name, element[1] is the plot or graphic object on which it occurs, and element[3] is the correct 
+  ;element[0] is the property name, element[1] is the plot or graphic object on which it occurs, and element[3] is the correct
   ;value of the property when the scale factor is just 1.
-  ;This procedure goes through the list and rescales the properties accordingly. 
+  ;This procedure goes through the list and rescales the properties accordingly.
   foreach element, w.uvalue.rescale_list do begin
     case element[0] of
       'sym_size':   element[1].sym_size =  element[2] * *w.uvalue.xyzscale
@@ -226,20 +226,20 @@ function collidl_mouse_wheel, w, x, y, d, keymods
   ;regular scroll should scroll image, eventually.  Not emplemented.
   ;control scroll zooms image;
   ;if (keymods eq 2) then begin ;This is a bit mask: 2 corresponds to holding down CTRL.
-    centerxy = *w.uvalue.centerxy
-    w.refresh, /disable
-    if d gt 0 then scalefact = 1.5 ;zoom in
-    if d lt 0 then scalefact = .6667 ;zoom out
-    *w.uvalue.xyzscale *= scalefact
-    ;cursor position would be shifted by this much:
-    shiftedby = ([x,y] - centerxy) * (scalefact - 1)
-    ;print,shiftedby
-    w['RAW_IMG'].scale, scalefact, scalefact, 1
-    kludgefact = (1.0/*w.uvalue.xyzscale)
-    w['RAW_IMG'].translate, -shiftedby[0] * kludgefact, -shiftedby[1] * kludgefact, /device ;make correction, so area under cursor does not move with scale change
-    *w.uvalue.centerxy -= shiftedby
-    rescale_annotations,w
-    w.refresh
+  centerxy = *w.uvalue.centerxy
+  w.refresh, /disable
+  if d gt 0 then scalefact = 1.5 ;zoom in
+  if d lt 0 then scalefact = .6667 ;zoom out
+  *w.uvalue.xyzscale *= scalefact
+  ;cursor position would be shifted by this much:
+  shiftedby = ([x,y] - centerxy) * (scalefact - 1)
+  ;print,shiftedby
+  w['RAW_IMG'].scale, scalefact, scalefact, 1
+  kludgefact = (1.0/*w.uvalue.xyzscale)
+  w['RAW_IMG'].translate, -shiftedby[0] * kludgefact, -shiftedby[1] * kludgefact, /device ;make correction, so area under cursor does not move with scale change
+  *w.uvalue.centerxy -= shiftedby
+  rescale_annotations,w
+  w.refresh
   ;endif
   return,0 ; skip default handling; no idea if this is really needed
 end
@@ -253,15 +253,15 @@ function img_button_event_handler, event
   WIDGET_CONTROL, wDraw, GET_VALUE = w
   if event.select eq 0 then return,0
   if event.VALUE eq 'RAW' then begin
-    w['RAW_IMG'].hide = 0 
+    w['RAW_IMG'].hide = 0
     w['FILTERED_IMG'].hide = 1
   endif
   if event.VALUE eq 'FILTERED' then begin
-    w['RAW_IMG'].hide = 1 
+    w['RAW_IMG'].hide = 1
     w['FILTERED_IMG'].hide = 0
   endif
   if event.VALUE eq 'NONE' then begin
-    w['RAW_IMG'].hide = 1 
+    w['RAW_IMG'].hide = 1
     w['FILTERED_IMG'].hide = 1
   endif
 end
@@ -431,6 +431,8 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   do_angle_histogram = 1  ;whether to output angle histogram file
   save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
   save_filtered_image =1 ; whether to save bandpass filtered version of input image
+  save_the_all_image_file = 0 ; whether to save image with original image, orientation field, and defects.  Somehow this takes a long time.
+  show_computation_times = 0
   ;********************************************************
 
   ; in order to redraw windows
@@ -485,7 +487,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
     print,'number of files is',n_elements(fs)
 
-; THE MASTER LOOP------------------------------------------------------------------------------------------
+    ; THE MASTER LOOP------------------------------------------------------------------------------------------
     time0=systime(1)
     for i=0,n_elements(fs)-1 do begin
       close,/all
@@ -493,7 +495,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
 
       data=byte(bytscl(read_tiff(fs(i))));
-;      data=reverse(data,2)
+      ;      data=reverse(data,2)
       imagesize=size(data)
       if (keyword_set(invert)) then begin
         data=255-temporary(data)
@@ -577,7 +579,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.5 ;at spheresize=6 on a 1024x1024 image, 0.5 was about right.
       spheres=plot(goodx,goody, /overplot, NAME = 'SPHERES', antialias=0,symbol="o",sym_color=[0,255,0], $
         sym_size=pcircle_size,linestyle='none', /data, axis_style=0)
-      widg_win.uvalue.rescale_list.add, list('sym_size', spheres, pcircle_size) 
+      widg_win.uvalue.rescale_list.add, list('sym_size', spheres, pcircle_size)
       widg_win.uvalue.rescale_list.add, list('sym_thick', spheres, 1.712 * pcircle_size)
       spheres.rotate, /reset
       ;      spheres2 = ellipse(100,200, major=10, /current, NAME = 'SPHERES', color='blue', /data)
@@ -631,7 +633,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         for j1=edges[i1],edges[i1+1]-1 do begin
           ; collect angle data from the bond
           if (i1 lt edges[j1]) then begin
-;            plots,[goodx[edges[j1]]/!xss,goodx[i1]/!xss],[1-goody[edges[j1]]/!yss,1-goody[i1]/!yss],/normal,color=!colorbond,thick=1.5
+            ;            plots,[goodx[edges[j1]]/!xss,goodx[i1]/!xss],[1-goody[edges[j1]]/!yss,1-goody[i1]/!yss],/normal,color=!colorbond,thick=1.5
             bondsx[bondcount]=(goodx[i1]+goodx[edges[j1]])/2
             bondsy[bondcount]=(goody[i1]+goody[edges[j1]])/2
             bondsl[bondcount]=sqrt((goodx[i1]-goodx[edges[j1]])^2.0+(goody[i1]-goody[edges[j1]])^2.0)
@@ -673,7 +675,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       unbound5=0
       unbound7=0
 
-;Now draw triangulation---------------------
+      ;Now draw triangulation---------------------
       listedges=list()
       for i1=0L, nvertices-1 do begin
         for j1=edges[i1],edges[i1+1]-1 do begin
@@ -693,9 +695,9 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         /overplot, NAME = 'TRIANGULATION', color=[0,0,255],thick=2)
       widg_win.uvalue.rescale_list.add, list('thick', triangulation, 2)
 
- ;     img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
- ;     write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
-;      w.close
+      ;     img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
+      ;     write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
+      ;      w.close
 
 
 
@@ -741,13 +743,15 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ; Do gaussian smoothing on the bond angle file
       smoothbcosangle=fltarr(!xss+1,!yss+1)
       smoothbsinangle=fltarr(!xss+1,!yss+1)
-      print,'starting doing the smoothing...'
-      t0=systime(1)
+      time1=systime(1)
+      if show_computation_times then print,'elapsed time so far: ', time1-time0
+      if show_computation_times then print,'starting doing the smoothing...'
       ;      smooth,bcosangle, smoothbcosangle, weights, howmuch
       ;      smooth,bsinangle, smoothbsinangle, weights, howmuch
       fftsmooth,bcosangle, smoothbcosangle, weights, long(bondlength);howmuch
       fftsmooth,bsinangle, smoothbsinangle, weights, long(bondlength);howmuch
-      print,'done doing the smoothing...','elapsed time = ',systime(1)-t0
+      time2=systime(1)
+      if show_computation_times then print,'done doing the smoothing...','elapsed time for smoothing = ',time2 - time1
       bcosangle=!NULL
       bsinangle=!NULL
 
@@ -761,16 +765,16 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_angle.tif', rgb_angle_image, compression=1
 
-;      rgb_angle_image=reverse(rgb_angle_image,3)
-;      wBase = WIDGET_BASE(/COLUMN)
-;      wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=!xss+1, YSIZE=!yss+1,/APP_SCROLL,retain=2)
-;      WIDGET_CONTROL, wBase, /REALIZE
-;      im_ang = image(rgb_angle_image, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
-;      im_ang = image(rgb_angle_image, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
-widg_win.select
+      ;      rgb_angle_image=reverse(rgb_angle_image,3)
+      ;      wBase = WIDGET_BASE(/COLUMN)
+      ;      wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=!xss+1, YSIZE=!yss+1,/APP_SCROLL,retain=2)
+      ;      WIDGET_CONTROL, wBase, /REALIZE
+      ;      im_ang = image(rgb_angle_image, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
+      ;      im_ang = image(rgb_angle_image, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
+      widg_win.select
       orient_img=image(rgb_angle_image, /overplot, NAME = 'ORIENT_IMG', margin=0, transparency=50, zvalue=-.01, axis_style=0)
       orient_img.rotate, /reset
-      
+
 
       if (do_angle_histogram eq 1) then begin
         single_angle_histogram = histogram(smoothbangle,min =0,binsize = !PI/(3 * 60), nbins = 61)
@@ -782,7 +786,7 @@ widg_win.select
 
 
       ;      Now we have origimg, bondsimg, rgb_angle_image to work with
-;      newimg=origimg*.5+rgb_angle_image*.5
+      ;      newimg=origimg*.5+rgb_angle_image*.5
       rgb_orig = bytarr(3,!xss+1,!yss+1)
       rgb_orig[0,*,*]=data
       rgb_orig[1,*,*]=data
@@ -795,18 +799,26 @@ widg_win.select
       ;      print,'Writing grayscale angle TIFF file'
       if (save_bw_angle_tif eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'smooth.tif',bytscl(smoothbangle,MAX= !pi/3,MIN=0)
 
+      time_defects0=systime(1)
+      if show_computation_times then print,'about to draw defects....'
+
       ;In this section, we draw defects over a large image.
       ;first, open a window as a buffer, and draw things there.
-      sf = 2; scale factor for the whole image
-      w=window(/buffer,dimensions=[sf*(!xss+1),sf*(!yss+1)])
-      w.uvalue={defect_plot_list:list(), rescale_list:list()}
-      p1 = image(rebin(newimg,3,sf*(!xss+1),sf*(!yss+1)), /overplot, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
-      ;add annotations as below
-      add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_diameter
-      add_dislocations_to_window, w, sf, goodx, goody, edges, bound, nvertices
-      img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
-      write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
-      w.close
+      if save_the_all_image_file then begin
+        sf = 2; scale factor for the whole image
+        w=window(/buffer,dimensions=[sf*(!xss+1),sf*(!yss+1)])
+        w.uvalue={defect_plot_list:list(), rescale_list:list()}
+        p1 = image(rebin(newimg,3,sf*(!xss+1),sf*(!yss+1)), /overplot, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
+        ;add annotations as below
+        add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_diameter
+        add_dislocations_to_window, w, sf, goodx, goody, edges, bound, nvertices
+        img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
+        time_fileall0=systime(1)
+        write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
+        time_fileall1=systime(1)
+        if show_computation_times then print,'done with writing file defects; elapsed time = ',time_fileall1 - time_fileall0
+        w.close
+      endif ;save_the_all_image_file
 
       ;These lines display the file just written:
       ;wBase = WIDGET_BASE(/COLUMN)
@@ -814,11 +826,16 @@ widg_win.select
       ;WIDGET_CONTROL, wBase, /REALIZE
       ;im_ang = image(img_new_all, /current, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
 
+      time_defects1=systime(1)
+      if show_computation_times then print,'done with file defects; elapsed time = ',time_defects1 - time_defects0
+
       ;Now do the same thing on the main window.
       widg_win.select
       add_disclinations_to_window, widg_win, 1, goodx, goody, disc, unbounddisc, sphere_diameter
       add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
 
+      time_defects2=systime(1)
+      if show_computation_times then print,'done with window defects; elapsed time = ',time_defects2 - time_defects1
 
       img_circled_spheres=!NULL
 
@@ -848,6 +865,8 @@ widg_win.select
       weights=0
 
 
+      time_ccorr0=systime(1)
+      if show_computation_times then print,'about to do Ccorr....'
 
       ;ccorr
       ;********************
@@ -880,6 +899,9 @@ widg_win.select
       ncorr=0
       ;ccorr
       ;--------------------------------------------------------------
+
+      time_ccorr1=systime(1)
+      if show_computation_times then print,'done with ccorr; elapsed time = ',time_ccorr1 - time_ccorr0
 
 
 
@@ -925,7 +947,7 @@ widg_win.select
     endfor
     free_lun,u
 
-    print,'total time:',systime(1)-time0,'elapsed seconds = '
+    print,'total time:',systime(1)-time0
 
   endif else begin
     print, 'no opened images'
@@ -950,7 +972,7 @@ end
 
 pro fftsmooth, input, output, weights, howmuch
 
-  print, 'from fftsmooth: howmuch = ',howmuch
+  ;print, 'from fftsmooth: howmuch = ',howmuch
 
   x=(size(input))[1]
   y=(size(input))[2]
