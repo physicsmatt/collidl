@@ -286,10 +286,10 @@ function annotation_button_event_handler, event
 end
 
 PRO collidl_widget_EVENT, event
-  print,"single button event"
-  print,event
-  print, TAG_NAMES(event)
-  print, TAG_NAMES(event, /STRUCTURE_NAME)
+  ;print,"single button event"
+  ;print,event
+  ;print, TAG_NAMES(event)
+  ;print, TAG_NAMES(event, /STRUCTURE_NAME)
 
 
   CASE TAG_NAMES(event, /STRUCTURE_NAME) OF
@@ -319,11 +319,16 @@ PRO collidl_widget_EVENT, event
       ; and our new size.
       WIDGET_CONTROL, event.id, GET_UVALUE=pad, TLB_GET_SIZE=newSize
       wDraw = WIDGET_INFO(event.top, FIND_BY_UNAME='DRAW')
+      WIDGET_CONTROL, wDraw, GET_VALUE = w
       ; Change the draw widget to match the new size, minus padding.
       xy = newSize - pad
       WIDGET_CONTROL, wDraw, $
         DRAW_XSIZE=xy[0], DRAW_YSIZE=xy[1], $
         SCR_XSIZE=xy[0], SCR_YSIZE=xy[1]
+      ;print,"new window size", xy[0], xy[1]
+      ;print,"old window size", *w.uvalue.windowsize
+      *w.uvalue.centerxy += (xy - *w.uvalue.windowsize) * 0.5
+      *w.uvalue.windowsize = xy
     end
 
     ELSE: ; do nothing
@@ -340,15 +345,17 @@ function create_collidl_widgets
   ; Create the action buttons.
   bgroup_images = CW_BGROUP(base2, ['Raw','Filtered','None'], /ROW, /EXCLUSIVE, LABEL_TOP='Images', /FRAME, set_value=0, $
     BUTTON_UVALUE=['RAW','FILTERED','NONE'], event_funct='img_button_event_handler', UNAME='IMG_BUTTONS')
+  WIDGET_CONTROL, bgroup_images, set_value=0
   bgroup_annotations = CW_BGROUP(base2, ['Spheres','Triangulation','Defects','Orientation'], /ROW, /NONEXCLUSIVE, LABEL_TOP='Annotations', /FRAME, $
     BUTTON_UVALUE=['SPHERES','TRIANGULATION','DEFECTS','ORIENTATION'], event_funct='annotation_button_event_handler', UNAME='ANN_BUTTONS')
+  WIDGET_CONTROL, bgroup_annotations, set_value=[1,1,1,1]
   done = WIDGET_BUTTON(base2, VALUE = 'Done', UVALUE = 'DONE')
 
   wDraw = WIDGET_WINDOW(base1, UVALUE='draw', UNAME='DRAW', xsize=800, ysize=800)
 
-
   ; Realize the widget (i.e., display it on screen).
   WIDGET_CONTROL, base1, /REALIZE
+  WIDGET_CONTROL, wDraw, GET_VALUE = w
 
   ; Register the widget with the XMANAGER, leaving the IDL command
   ; line active.
@@ -356,15 +363,12 @@ function create_collidl_widgets
 
   ; Cache the padding between the base and the draw
   WIDGET_CONTROL, base1, TLB_GET_SIZE=basesize
-  xpad = basesize[0] - 640
-  ypad = basesize[1] - 512
+  xpad = basesize[0] - 800;640
+  ypad = basesize[1] - 800;512
   WIDGET_CONTROL, base1, SET_UVALUE=[xpad,ypad]
-  WIDGET_CONTROL, bgroup_annotations, set_value=[1,1,1,1]
-  WIDGET_CONTROL, bgroup_images, set_value=0
   ;consider widget_control send_event?
 
   ; Retrieve the newly-created Window object.
-  WIDGET_CONTROL, wDraw, GET_VALUE = w
 
   w.SELECT
   w.MOUSE_DOWN_HANDLER='collidl_mouse_down'
@@ -378,6 +382,7 @@ function create_collidl_widgets
     mousedown:ptr_new(0), $
     xyzscale:ptr_new(1.0), $
     centerxy:ptr_new([400, 400]), $
+    windowsize:ptr_new([800, 800]), $
     movehomemousexy:ptr_new([0,0]), $
     movehomecenterxy:ptr_new([0,0]), $
     defect_plot_list:list(), $ ;a list of plots of dislocations and disclinations
@@ -423,8 +428,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   ; the correlation calculations fast. Best way so far. By far.
 
 
-  showdiscbefore=1; whether to display the
-  ; disclinations before drawing dislocations
   do_angle_histogram = 1  ;whether to output angle histogram file
   save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
   save_filtered_image =1 ; whether to save bandpass filtered version of input image

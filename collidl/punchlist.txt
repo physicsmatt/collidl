@@ -8,7 +8,6 @@ Get edge vertices from triangulation, not distance
 multiple files; /stay option
 Figure out warnings for multiply defined functions.
 Fix keyboard focus so keys work after clicking buttons.
-Allow full screen and resizing.
 Figure out why so slow, redo some switches
 Test on big images
 
