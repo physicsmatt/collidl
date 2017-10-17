@@ -423,36 +423,18 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   ; program
   ; 1 = do it, 0 = don't
 
-  ; this is the latest trick, works great
-  Ccorr=1   ;Preps the data for the external c-program to do the
-  ; the correlation calculations fast. Best way so far. By far.
-
-
   do_angle_histogram = 1  ;whether to output angle histogram file
   save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
   save_filtered_image =1 ; whether to save bandpass filtered version of input image
   save_the_all_image_file = 0 ; whether to save image with original image, orientation field, and defects.  Somehow this takes a long time.
   show_computation_times = 0
+  ; this is the latest trick, works great
+  Ccorr=1   ;Preps the data for the external c-program to do the
+  ; the correlation calculations fast. Best way so far. By far.
   ;********************************************************
-
-  ; in order to redraw windows
-  device,retain=1
 
   ; create gaussian weights used for smoothing the angular field
   ; howmuch (pixels out of 256) controls the smoothing of the angular correlation file
-
-  howmuch=16
-  weights=fltarr(2*howmuch+1,2*howmuch+1)
-  norm=0
-  for aa=-howmuch, howmuch do begin
-    for bb=-howmuch, howmuch do begin
-      weights[aa+howmuch, bb+howmuch]=exp(-(aa*aa+bb*bb)/(howmuch*howmuch))
-      norm=norm+weights[aa+howmuch, bb+howmuch]
-    endfor
-  endfor
-  weights=weights/norm
-  W=fltarr(1000)
-  W[*]=1
 
   DEFSYSV, '!draw_recursively', 1
   DEFSYSV, '!recursion_level',0L
@@ -461,6 +443,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   DEFSYSV, '!colorbond' , rgbcolor(0,0,255); blue
   DEFSYSV, '!colorwhite' , rgbcolor(255,255,255) ; white
 
+  howmuch=16
 
   ;     cd, "E:\matt\research\idl_trawick\simsph\w8.25_eta.4\smaller\trials1-9"
   ;     cd, "/home/angelscu/temp/081202/1.25"
@@ -519,7 +502,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       if (keyword_set(sphere_diameter)) then begin
       endif else begin
-        sphere_diameter =6
+        sphere_diameter = 6
       endelse
       print,'using sphere size',sphere_diameter
       ; parameters for the sphere locator (obsolete)
@@ -577,7 +560,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ;In this new section, we will generate an image JUST showing where the spheres were found.
       widg_win.select
       pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.5 ;at spheresize=6 on a 1024x1024 image, 0.5 was about right.
-      spheres=plot(goodx,goody, /overplot, NAME = 'SPHERES', antialias=0,symbol="o",sym_color=[0,255,0], $
+      spheres=plot(goodx,goody, /overplot, NAME = 'SPHERES', antialias=0,symbol="o",sym_color=[180,255,100], $
         sym_size=pcircle_size,linestyle='none', /data, axis_style=0)
       widg_win.uvalue.rescale_list.add, list('sym_size', spheres, pcircle_size)
       widg_win.uvalue.rescale_list.add, list('sym_thick', spheres, 1.712 * pcircle_size)
@@ -748,16 +731,16 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       if show_computation_times then print,'starting doing the smoothing...'
       ;      smooth,bcosangle, smoothbcosangle, weights, howmuch
       ;      smooth,bsinangle, smoothbsinangle, weights, howmuch
-      fftsmooth,bcosangle, smoothbcosangle, weights, long(bondlength);howmuch
-      fftsmooth,bsinangle, smoothbsinangle, weights, long(bondlength);howmuch
+      smoothbcosangle = fftsmooth(bcosangle, long(bondlength))
+      smoothbsinangle = fftsmooth(bsinangle, long(bondlength))
+      smoothbangle=-((float(atan(smoothbsinangle, smoothbcosangle))) * 180.0 / !pi ) +180
       time2=systime(1)
       if show_computation_times then print,'done doing the smoothing...','elapsed time for smoothing = ',time2 - time1
       bcosangle=!NULL
       bsinangle=!NULL
-
-      smoothbangle=-((float(atan(smoothbsinangle, smoothbcosangle))) * 180.0 / !pi ) +180
       smoothbsinangle=!NULL
       smoothbcosangle=!NULL
+
       HSV_array = replicate(1.0,3,!xss+1,!yss+1)
       HSV_array[0,*,*]=smoothbangle
       rgb_angle_image = replicate(0B,3,!xss+1,!yss+1)
@@ -862,8 +845,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       whatbondstokeep=0
       boutermost=0
       origimg=0
-      weights=0
-
 
       time_ccorr0=systime(1)
       if show_computation_times then print,'about to do Ccorr....'
@@ -970,7 +951,7 @@ end
 ; **************************************************************************************
 
 
-pro fftsmooth, input, output, weights, howmuch
+function fftsmooth, input, howmuch
 
   ;print, 'from fftsmooth: howmuch = ',howmuch
 
@@ -989,6 +970,7 @@ pro fftsmooth, input, output, weights, howmuch
   endfor
   bigweights=bigweights/norm
   output=fft(fft(input)*fft(bigweights),/inverse)
+  return,output
 end
 
 pro smooth, input, output, weights, howmuch
