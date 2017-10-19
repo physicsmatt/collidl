@@ -757,12 +757,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_angle.tif', rgb_angle_image, compression=1
 
-      ;      rgb_angle_image=reverse(rgb_angle_image,3)
-      ;      wBase = WIDGET_BASE(/COLUMN)
-      ;      wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=!xss+1, YSIZE=!yss+1,/APP_SCROLL,retain=2)
-      ;      WIDGET_CONTROL, wBase, /REALIZE
-      ;      im_ang = image(rgb_angle_image, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
-      ;      im_ang = image(rgb_angle_image, /current, IMAGE_DIMENSIONS=[!xss+1,!yss+1],margin=[0.0,0.0,0.0,0.0])
       widg_win.select
       orient_img=image(rgb_angle_image, /overplot, NAME = 'ORIENT_IMG', margin=0, transparency=50, zvalue=-.01, axis_style=0)
       orient_img.rotate, /reset
@@ -791,12 +785,12 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ;      print,'Writing grayscale angle TIFF file'
       if (save_bw_angle_tif eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'smooth.tif',bytscl(smoothbangle,MAX= !pi/3,MIN=0)
 
-      time_defects0=systime(1)
-      if show_computation_times then print,'about to draw defects....'
 
       ;In this section, we draw defects over a large image.
       ;first, open a window as a buffer, and draw things there.
       if save_the_all_image_file then begin
+        time_defects0=systime(1)
+        if show_computation_times then print,'about to draw defects....'
         sf = 2; scale factor for the whole image
         w=window(/buffer,dimensions=[sf*(!xss+1),sf*(!yss+1)])
         w.uvalue={defect_plot_list:list(), rescale_list:list()}
@@ -810,26 +804,17 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         time_fileall1=systime(1)
         if show_computation_times then print,'done with writing file defects; elapsed time = ',time_fileall1 - time_fileall0
         w.close
-      endif ;save_the_all_image_file
-
-      ;These lines display the file just written:
-      ;wBase = WIDGET_BASE(/COLUMN)
-      ;wDraw = WIDGET_WINDOW(wBase, X_SCROLL_SIZE=900, Y_SCROLL_SIZE=900, XSIZE=sf*(!xss+1), YSIZE=sf*(!yss+1),/APP_SCROLL,retain=2)
-      ;WIDGET_CONTROL, wBase, /REALIZE
-      ;im_ang = image(img_new_all, /current, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
-
-      time_defects1=systime(1)
-      if show_computation_times then print,'done with file defects; elapsed time = ',time_defects1 - time_defects0
+        ;The next line displays the file just written:
+        ;im_ang = image(img_new_all)
+        img_new_all = !NULL
+        time_defects1=systime(1)
+        if show_computation_times then print,'done with file defects; elapsed time = ',time_defects1 - time_defects0
+     endif ;save_the_all_image_file
 
       ;Now do the same thing on the main window.
       widg_win.select
       add_disclinations_to_window, widg_win, 1, goodx, goody, disc, unbounddisc, sphere_diameter
       add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
-
-      time_defects2=systime(1)
-      if show_computation_times then print,'done with window defects; elapsed time = ',time_defects2 - time_defects1
-
-      img_circled_spheres=!NULL
 
 
 
