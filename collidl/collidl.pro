@@ -423,6 +423,8 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   ; program
   ; 1 = do it, 0 = don't
 
+  use_debug_mode_filename = 1
+  debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
   do_angle_histogram = 1  ;whether to output angle histogram file
   save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
   save_filtered_image =1 ; whether to save bandpass filtered version of input image
@@ -450,9 +452,12 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   ;     cd, "/home/angelscu/temp/081202/1.25"
   ;     cd, "/usr/temp/HardSpheres/fromthanos" ; make this your favorite data directory
   ; read files either as a list (.txt file with all names) or by selecting them by hand
-  ;       fs=dialog_pickfile(get_path=ps,/multiple_files)
-  ;       print,fs
-  fs="../../collidl_test_images/2017tests/double.tif"
+
+  if use_debug_mode_filename then begin
+    fs = debug_mode_filename
+  endif else begin
+    fs=dialog_pickfile(get_path=ps,/multiple_files)
+  endelse
 
   if ((n_elements(fs) gt 0) AND (strcmp(fs[0],'') eq 0)) then begin
     if ((strmid(strlowcase(fs(0)),strlen(fs(0))-3,3) ne 'tif') and (strmid(strlowcase(fs(0)),strlen(fs(0))-3,3) ne 'dat'))then readlist,fs(0),fs,path=ps else fs=[fs]
