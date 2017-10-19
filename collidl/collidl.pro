@@ -427,6 +427,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
   save_filtered_image =1 ; whether to save bandpass filtered version of input image
   save_the_all_image_file = 0 ; whether to save image with original image, orientation field, and defects.  Somehow this takes a long time.
+  save_the_spheres_image_file = 0;
   show_computation_times = 0
   ; this is the latest trick, works great
   Ccorr=1   ;Preps the data for the external c-program to do the
@@ -452,6 +453,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   ;       fs=dialog_pickfile(get_path=ps,/multiple_files)
   ;       print,fs
   fs="../../collidl_test_images/2017tests/double.tif"
+
   if ((n_elements(fs) gt 0) AND (strcmp(fs[0],'') eq 0)) then begin
     if ((strmid(strlowcase(fs(0)),strlen(fs(0))-3,3) ne 'tif') and (strmid(strlowcase(fs(0)),strlen(fs(0))-3,3) ne 'dat'))then readlist,fs(0),fs,path=ps else fs=[fs]
     ; this is where all the info is dumped, then written to the summary file
@@ -467,7 +469,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
     wDraw = WIDGET_INFO(base1, FIND_BY_UNAME = 'DRAW')
     WIDGET_CONTROL, wDraw, GET_VALUE = widg_win
     widg_win.select
-
     print,'number of files is',n_elements(fs)
 
     ; THE MASTER LOOP------------------------------------------------------------------------------------------
@@ -497,8 +498,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         ;reset the image size if scaled
         imagesize=size(data)
       endif
-
-
 
       if (keyword_set(sphere_diameter)) then begin
       endif else begin
@@ -558,20 +557,32 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       data1=!NULL
 
       ;In this new section, we will generate an image JUST showing where the spheres were found.
+      if save_the_spheres_image_file then begin
+        time_filespheres0=systime(1)
+        sf = 2; scale factor for the whole image
+        w=window(/buffer, dimensions=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
+        p1 = image(rebin(data,sf*(!xss+1),sf*(!yss+1)), /overplot, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
+        ;add annotations as below
+        pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.5 ;at spheresize=6 on a 1024x1024 image, 0.5 was about right.
+        spheres=plot(sf*goodx,sf*goody, /overplot, NAME = 'SPHERES', antialias=0,symbol="o",sym_color=[180,255,100], $
+          sym_size=pcircle_size, sym_thick = 1.712 * sf*pcircle_size, linestyle='none', /data, axis_style=0)
+        ;spheres.rotate, /reset
+        img_circled_spheres = spheres.CopyWindow(border=0, height=sf*(!yss+1))
+        write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_spheres.tif', reverse(img_circled_spheres,2), compression=1
+        img_circled_spheres=!NULL
+        w.close
+        time_filespheres1=systime(1)
+        if show_computation_times then print,'done with writing spheres file ; elapsed time = ',time_filespheres1 - time_filespheres0
+      endif ;save_the_spheres_image_file
+
+      ;now plot spheres on the diplay widget window
       widg_win.select
       pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.5 ;at spheresize=6 on a 1024x1024 image, 0.5 was about right.
       spheres=plot(goodx,goody, /overplot, NAME = 'SPHERES', antialias=0,symbol="o",sym_color=[180,255,100], $
         sym_size=pcircle_size,linestyle='none', /data, axis_style=0)
+      spheres.rotate, /reset
       widg_win.uvalue.rescale_list.add, list('sym_size', spheres, pcircle_size)
       widg_win.uvalue.rescale_list.add, list('sym_thick', spheres, 1.712 * pcircle_size)
-      spheres.rotate, /reset
-      ;      spheres2 = ellipse(100,200, major=10, /current, NAME = 'SPHERES', color='blue', /data)
-
-      img_circled_spheres = widg_win.CopyWindow(border=0,height=!yss+1)
-      write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_spheres.tif', reverse(img_circled_spheres,2), compression=1
-
-      img_circled_spheres=!NULL
-
 
       ; at the exit, edges will have a weird format, read idl help
       ; on "triangulate" - this is the main source of errors in code
@@ -677,13 +688,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       triangulation=polyline(goodx[listedges.toarray()],goody[listedges.toarray()], antialias = 0 ,connectivity=connections,/data, $
         /overplot, NAME = 'TRIANGULATION', color=[0,0,255],thick=2)
       widg_win.uvalue.rescale_list.add, list('thick', triangulation, 2)
-
-      ;     img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
-      ;     write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
-      ;      w.close
-
-
-
 
       ;--------------------------------------------------------
 
