@@ -423,7 +423,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   ; program
   ; 1 = do it, 0 = don't
 
-  use_debug_mode_filename = 1
+  use_debug_mode_filename = 0
   debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
   do_angle_histogram = 1  ;whether to output angle histogram file
   save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
@@ -1234,7 +1234,7 @@ pro add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_
   w.uvalue.defect_plot_list.add, p
 
   eights=where(disc gt 7)
-  p=plot(sf*goodx[eights],sf*(!yss-goody[eights]),/data,/overplot, sym_color=[0,255,255],sym_filled=1,sym_size=psym_size, _extra=props)
+  p=plot(sf*goodx[eights],sf*(goody[eights]),/data,/overplot, sym_color=[0,255,255],sym_filled=1,sym_size=psym_size, _extra=props)
   w.uvalue.rescale_list.add, list('sym_size',p, psym_size)
   w.uvalue.defect_plot_list.add, p
 
