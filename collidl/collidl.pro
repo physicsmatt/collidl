@@ -428,8 +428,8 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   do_angle_histogram = 1  ;whether to output angle histogram file
   save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
   save_filtered_image =1 ; whether to save bandpass filtered version of input image
-  save_the_all_image_file = 0 ; whether to save image with original image, orientation field, and defects.  Somehow this takes a long time.
-  save_the_spheres_image_file = 0;
+  save_the_all_image_file = 1 ; whether to save image with original image, orientation field, and defects.  Somehow this takes a long time.
+  save_the_spheres_image_file = 1;
   show_computation_times = 0
   ; this is the latest trick, works great
   Ccorr=1   ;Preps the data for the external c-program to do the
@@ -1113,7 +1113,6 @@ function can_retract_from, vertex1, vertex2, edges, unbounddisc, inbounds, inpro
   end
 
   !recursion_level=!recursion_level+1
-
 
   if ((try_to_find_a_mate_nicely_for(vertex2,nvertices,edges,unbounddisc, inbounds, inprocess,bound,outofboundsok) eq 1)) then begin
     inprocess[vertex1]=0
