@@ -1,3 +1,4 @@
+compile_opt strictarr
 
 ;This program is supposed to read an image file, determine the sphere positions,
 ;do the triangulation and generate the orientation field
@@ -1114,6 +1115,7 @@ function can_retract_from, vertex1, vertex2, edges, unbounddisc, inbounds, inpro
 
   !recursion_level=!recursion_level+1
 
+  forward_function try_to_find_a_mate_rudely_for
   if ((try_to_find_a_mate_nicely_for(vertex2,nvertices,edges,unbounddisc, inbounds, inprocess,bound,outofboundsok) eq 1)) then begin
     inprocess[vertex1]=0
     !recursion_level=!recursion_level-1
