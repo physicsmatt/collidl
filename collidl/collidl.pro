@@ -337,8 +337,8 @@ PRO collidl_widget_EVENT, event
 END
 
 function create_collidl_widgets
-  base1 = WIDGET_BASE(/COLUMN, TITLE='Test Collidl', $
-    /TLB_SIZE_EVENTS)
+  base1 = WIDGET_BASE(/COLUMN, TITLE='Test Collidl');, $
+;    /TLB_SIZE_EVENTS)
 
   ; Create the base for the button:
   base2 = WIDGET_BASE(base1, /ROW, /ALIGN_CENTER)
@@ -424,7 +424,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   ; program
   ; 1 = do it, 0 = don't
 
-  use_debug_mode_filename = 0
+  use_debug_mode_filename = 1
   debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
   do_angle_histogram = 1  ;whether to output angle histogram file
   save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
@@ -600,7 +600,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       disc=fltarr(nvertices)
       inbounds=intarr(nvertices)
-      inprocess=intarr(nvertices)
       ;ButtInOnAble=replicate(1,nvertices,2)   not used until later!
       ;ButtInOnAble=intarr(nvertices,2)
       ;ButtInOnAble=1 ;initially, all vertices can be butted in on.
@@ -665,10 +664,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ; read the idl help on "triangulate" for an explanation of the format
       ; bound[i] will be 1 if there is a bond or 0 otherwise
       bound=intarr(nedges)
-      ButtInOnAble=replicate(1,nvertices,2)
-      find_unbound_disc,nvertices,edges,unbounddisc, inbounds,inprocess, bound, ButtInOnAble
-      inprocess=0
-      ButtInOnAble=0
+      find_all_unbound_disc, nvertices, edges, unbounddisc, inbounds, bound 
 
       disc5=0; total # 5s
       disc7=0; total # 7s
@@ -1058,7 +1054,7 @@ end
 
 function it_would_help_to_bond_nicely ,vertex1,vertex2,edges, unbounddisc, inbounds, inprocess,bound,outofboundsok
   nvertices=n_elements(inbounds)
-  if ((sign_of(unbounddisc[vertex1]) eq -sign_of(unbounddisc[vertex2])) and (inprocess(vertex2) eq 0) ) then begin
+  if ((sign_of(unbounddisc[vertex1]) eq -sign_of(unbounddisc[vertex2])) and (inprocess[vertex2] eq 0) ) then begin
     ;  if (((unbounddisc[vertex1]*unbounddisc[vertex2] lt 0)) and (inprocess(vertex2) eq 0) ) then begin
     if ((inbounds(vertex2) eq 1) or (outofboundsok eq 1)) then begin
       return,1
@@ -1092,7 +1088,7 @@ function it_would_help_me_to_butt_in_on, vertex1, vertex2,edges,unbounddisc, inb
   nn2=edges[vertex2+1]-edges[vertex2]-6
   if (sign_of(nn1) eq -sign_of(nn2)) then begin
     ;   if ((unbounddisc[vertex1]*unbounddisc[vertex2] lt 0)) then begin
-    if (inprocess(vertex2) eq 0) then begin
+    if (inprocess[vertex2] eq 0) then begin
       return,1
     end
   end else begin
@@ -1150,12 +1146,12 @@ function can_butt_in_on, vertex1, vertex2,edges, unbounddisc, inbounds, inproces
   for i=edges[vertex2], edges[vertex2+1]-1 do begin
     if (bound[i] gt 0) and ((inbounds[edges[i]] eq 1) or (outofboundsok eq 1)) then begin
       if (can_retract_from(vertex2, edges[i],edges, unbounddisc, inbounds, inprocess,bound,ButtInOnAble,outofboundsok) eq 1) then begin
-        inprocess(vertex1)=0
+        inprocess[vertex1]=0
         return,1
       end
     end
   endfor
-  inprocess(vertex1)=0
+  inprocess[vertex1]=0
   ButtInOnAble[vertex2,outofboundsok] = 0
   return,0
 end
@@ -1177,29 +1173,31 @@ end
 
 pro try_to_find_mates_for,vertex,nvertices,edges,unbounddisc, inbounds, inprocess, bound, ButtInOnAble
   if (inbounds[vertex] eq 1) then begin
-    inprocess(vertex)=1
-    jump0:   if (unbounddisc[vertex] eq 0) then goto,jump1
-    if (try_to_find_a_mate_nicely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound,0) eq 0) then goto,jump1
-    goto,jump0
+    inprocess[vertex]=1
 
-    jump1:   if (unbounddisc[vertex] eq 0) then goto,jump2
-    if (try_to_find_a_mate_rudely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound, ButtInOnAble,0) eq 0) then goto,jump2
-    goto,jump1
+    while (unbounddisc[vertex] ne 0) do begin
+      if (try_to_find_a_mate_nicely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound,0) eq 0) then break
+    endwhile
 
-    jump2:   if (unbounddisc[vertex] eq 0) then goto,jump3
-    if (try_to_find_a_mate_nicely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound, 1) eq 0) then goto,jump3
-    goto,jump2
+    while (unbounddisc[vertex] ne 0) do begin
+      if (try_to_find_a_mate_rudely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound, ButtInOnAble,0) eq 0) then break
+    endwhile
 
-    jump3:   if (unbounddisc[vertex] eq 0) then goto,jump4
-    if (try_to_find_a_mate_rudely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound, ButtInOnAble, 1) eq 0) then goto,jump4
-    goto,jump3
+    while (unbounddisc[vertex] ne 0) do begin
+      if (try_to_find_a_mate_nicely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound, 1) eq 0) then break
+    endwhile
 
-    jump4:   inprocess(vertex)=0
-  end
+    while (unbounddisc[vertex] ne 0) do begin
+      if (try_to_find_a_mate_rudely_for(vertex,nvertices,edges,unbounddisc, inbounds, inprocess,bound, ButtInOnAble, 1) eq 0) then break
+    endwhile
+
+    inprocess[vertex]=0
+  endif
 end
 
-
-pro find_unbound_disc,nvertices,edges,unbounddisc, inbounds,inprocess,bound, ButtInOnAble
+pro find_all_unbound_disc, nvertices, edges, unbounddisc, inbounds, bound
+  inprocess=intarr(nvertices)
+  ButtInOnAble=replicate(1,nvertices,2)
   for i=long(0), nvertices-1 do begin
     ;     print, "vertex ", i, unbounddisc[i]
     try_to_find_mates_for,i,nvertices,edges,unbounddisc, inbounds, inprocess,bound, ButtInOnAble
