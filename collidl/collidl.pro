@@ -810,6 +810,10 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       ;Now do the same thing on the main window.
       widg_win.select
+      neighbs = create_neighbor_array(outermost, edges)
+;      color_selected_points_in_window, widg_win, 1, goodx, goody, neighbs, sphere_diameter, [255,0,255]
+;      color_selected_points_in_window, widg_win, 1, goodx, goody, outermost, sphere_diameter, [0,0,0]
+      
       add_disclinations_to_window, widg_win, 1, goodx, goody, disc, unbounddisc, sphere_diameter
       add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
 
@@ -1207,6 +1211,31 @@ end
 
 function rgbcolor,R,G,B
   return,R+256L*(G+256L*B)
+end
+
+function create_neighbor_array, idx, connect
+  neighbs = list()
+  foreach i, idx do begin
+    neighbs.add, connect[connect[i] : connect[i+1] - 1] ,/extract
+  endforeach
+  return, neighbs.toarray()
+  both_combined = list(idx) 
+  both_combined.add, neighbs, /extract
+;  return, both_combined.toarray()
+end
+
+
+pro color_selected_points_in_window, w, sf, goodx, goody, selected_points, sphere_diameter, rgb_color_to_use
+;used for diagnostic purposes
+  psym_size= float(sphere_diameter)/!yss * 1024 / 6 * 0.4 ;at spheresize=6 on a 1024x1024 image, 0.4 was about right.
+  pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.75
+  disc_thick=3.0 * sf
+  circle_thick=1.0 * sf
+  props = {antialias:0, symbol:"o", linestyle:'none'}
+
+  p=plot(sf*goodx[selected_points],sf*(goody[selected_points]),/data,/overplot, sym_color=rgb_color_to_use,sym_filled=1,sym_size=psym_size, _extra=props)
+  w.uvalue.rescale_list.add, list('sym_size',p, psym_size)
+  w.uvalue.defect_plot_list.add, p
 end
 
 pro add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_diameter
