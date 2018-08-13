@@ -594,9 +594,10 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ; on "triangulate" - this is the main source of errors in code
       triangulate, goodx, goody, triangles, outermost, CONNECTIVITY = edges
 
-      areavertex=1.0*!xss*!yss/nvertices
-      bondlength=sqrt(areavertex*4/sqrt(3))
-      print, "Average bond length a=",bondlength
+      area_per_vertex=1.0*!xss*!yss/nvertices
+      area_per_triangle = 0.5 * area_per_vertex
+      bondlength=sqrt(area_per_triangle*4.0/sqrt(3.0))
+      print, "Average bond length by area method = ",bondlength
 
       disc=fltarr(nvertices)
       inbounds=intarr(nvertices)
@@ -605,7 +606,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ;ButtInOnAble=1 ;initially, all vertices can be butted in on.
       ;fcorr=fltarr(floor(sqrt(1.0*!xss*!xss+1.0*!yss*!yss)))  made later, as needed
       ;ncorr=fltarr(floor(sqrt(1.0*!xss*!xss+1.0*!yss*!yss)))  made later, as needed
-      print, nvertices
       MAX_BOND_NUMBER=nvertices*3.25
       bondsx=fltarr(MAX_BOND_NUMBER)
       bondsy=fltarr(MAX_BOND_NUMBER)
@@ -619,15 +619,21 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       discangle=fltarr(MAX_BOND_NUMBER)
       disccount=0L;
 
-      inboundsmult=1.5
       nedges=n_elements(edges)
 
+      ;Below are two methods to find spheres "near the edge", which may affect their number of nearest neighbors.
+      ;(I also tried just finding the nearest neighbors of all boundary points of the triangulation, but that wasn't sufficient.)
+      
+      ;First way is to simply use distance from the edge of the picture:
+      ;inboundsmult=1.5
+      ;inbounds[where((goodx gt inboundsmult*bondlength) and (goodx lt !xss-inboundsmult*bondlength) and (goody gt inboundsmult*bondlength) and (goody lt !yss-inboundsmult*bondlength))]=1;
+      
+      ;Second way is to use the actual distance to the perimeter of the triangulation 
+      inbounds = find_vertices_not_near_perimeter(goodx,goody,connectivity,outermost,bondlength)
 
-      inbounds[where((goodx gt inboundsmult*bondlength) and (goodx lt !xss-inboundsmult*bondlength) and (goody gt inboundsmult*bondlength) and (goody lt !yss-inboundsmult*bondlength))]=1;
+      ;color_selected_points_in_window, widg_win, 1, goodx, goody, where(inbounds eq 0), sphere_diameter, [0,0,0]
 
-
-
-      for i1=long(0),nvertices-1 do begin
+      for i1=0L,nvertices-1 do begin
         disc[i1]=edges[i1+1]-edges[i1] ; # neighbors
         for j1=edges[i1],edges[i1+1]-1 do begin
           ; collect angle data from the bond
@@ -646,7 +652,8 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       endfor
 
       bondslength=total(bondsl)/bondcount
-      print, "The Bondlength = ", bondslength
+      print, "Average Bondlength, by direct calculation = ", bondslength
+      print, "Median Bondlength, by direct calculation = ", median(bondsl[0:bondcount-1])
 
       unbounddisc=disc-6; unbound disclinationality phew !
       bondsl=0
@@ -810,9 +817,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       ;Now do the same thing on the main window.
       widg_win.select
-      neighbs = create_neighbor_array(outermost, edges)
-;      color_selected_points_in_window, widg_win, 1, goodx, goody, neighbs, sphere_diameter, [255,0,255]
-;      color_selected_points_in_window, widg_win, 1, goodx, goody, outermost, sphere_diameter, [0,0,0]
       
       add_disclinations_to_window, widg_win, 1, goodx, goody, disc, unbounddisc, sphere_diameter
       add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
@@ -1212,6 +1216,36 @@ end
 function rgbcolor,R,G,B
   return,R+256L*(G+256L*B)
 end
+
+function find_vertices_not_near_perimeter, x,y,conn,outermost, bondlength
+  ;The function "Triangulate" returns a list of "boundary" vertices on the outside of the triangulation.
+  ;But these "boundary" points are often far apart.  This routine returns a boolean list [0, 1, 0, 0, 1...] 
+  ;of which points are within a certain length of the triangulated boundary.
+
+  ;time0=systime(1)
+;  print,"starting to find edge vertices"
+  is_near_perimeter = intarr((size(x))[1])
+  num_perimeter_verts = (size(outermost))[1]
+  ;for efficiency, prefill an array with perimeter points:
+  L=fltarr(2,num_perimeter_verts + 1)
+  for perim_idx = 0, num_perimeter_verts-1 do begin
+    L[*,perim_idx] = [x[outermost[perim_idx]],y[outermost[perim_idx]]]
+  endfor
+  L[*,num_perimeter_verts]= L[*,0]
+  for v = 0, (size(x))[1] -1 do begin
+    min_dist = bondlength*100
+    P = [x[v],y[v]]
+    for perim_idx = 0, num_perimeter_verts-1 do begin
+      dist_to_edge = pnt_line(P, L[*,perim_idx], L[*,perim_idx+1], /interval)
+      if dist_to_edge lt min_dist then min_dist = dist_to_edge 
+    endfor
+    if min_dist lt bondlength*1.732*0.5 then is_near_perimeter[v] = 1
+  endfor
+  ;print,"total time for finding perimeter points:",systime(1)-time0
+  is_far_from_perimeter = (is_near_perimeter*0+1) - is_near_perimeter
+  return,is_far_from_perimeter
+end
+
 
 function create_neighbor_array, idx, connect
   neighbs = list()
