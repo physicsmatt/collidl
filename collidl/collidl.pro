@@ -337,8 +337,7 @@ PRO collidl_widget_EVENT, event
 END
 
 function create_collidl_widgets
-  base1 = WIDGET_BASE(/COLUMN, TITLE='Test Collidl');, $
-;    /TLB_SIZE_EVENTS)
+  base1 = WIDGET_BASE(/COLUMN, TITLE='Test Collidl', /TLB_SIZE_EVENTS)
 
   ; Create the base for the button:
   base2 = WIDGET_BASE(base1, /ROW, /ALIGN_CENTER)
