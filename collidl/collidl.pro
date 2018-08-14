@@ -594,8 +594,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ;ButtInOnAble=replicate(1,nvertices,2)   not used until later!
       ;ButtInOnAble=intarr(nvertices,2)
       ;ButtInOnAble=1 ;initially, all vertices can be butted in on.
-      ;fcorr=fltarr(floor(sqrt(1.0*!xss*!xss+1.0*!yss*!yss)))  made later, as needed
-      ;ncorr=fltarr(floor(sqrt(1.0*!xss*!xss+1.0*!yss*!yss)))  made later, as needed
       MAX_BOND_NUMBER=nvertices*3.25
       bondsx=fltarr(MAX_BOND_NUMBER)
       bondsy=fltarr(MAX_BOND_NUMBER)
@@ -837,41 +835,13 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       boutermost=0
       origimg=0
 
-      time_ccorr0=systime(1)
-      if show_computation_times then print,'about to do Ccorr....'
-
       ;ccorr
       ;********************
-      if (Ccorr eq 1) then begin
-
-        ; Writes out and prompts for the desired file name
-
-        openw,u,strmid(fs[0],0,strlen(fs[0])-4)+'bonds.dat',/get_lun
-        sampling=2; The decimation rate in getting the bonds
-
-        printf,u,sampling
-
-        printf,u,bondcount
-
-        for iii=0L, bondcount-1 do begin
-          printf,u,bondsx[iii],bondsy[iii],bondsangle[iii]
-        endfor
-
-        bondsangle=0
-        bondsx=0
-        bondsy=0
-
-        free_lun,u
-
-      endif ;(Ccorr eq 1)
-      bondsx=0
-      bondsy=0
-      dcorr=0
-      fcorr=0
-      ncorr=0
-      ;ccorr
-      ;--------------------------------------------------------------
-
+      time_ccorr0=systime(1)
+      if show_computation_times then print,'about to do Ccorr....'
+      if (Ccorr eq 1) then write_output_for_correlation_function,fs,bondsx,bondsy,bondsangle,bondcount
+;      bondsx=0
+;      bondsy=0
       time_ccorr1=systime(1)
       if show_computation_times then print,'done with ccorr; elapsed time = ',time_ccorr1 - time_ccorr0
 
@@ -941,6 +911,21 @@ end
 ;
 ; **************************************************************************************
 
+pro write_output_for_correlation_function, fs,bondsx,bondsy,bondsangle,bondcount
+
+  openw,u,strmid(fs[0],0,strlen(fs[0])-4)+'bonds.dat',/get_lun
+  sampling=2; The decimation rate in getting the bonds
+
+  printf,u,sampling
+
+  printf,u,bondcount
+
+  for iii=0L, bondcount-1 do begin
+    printf,u,bondsx[iii],bondsy[iii],bondsangle[iii]
+  endfor
+
+  free_lun,u
+end
 
 function fftsmooth, input, howmuch
 
