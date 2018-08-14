@@ -348,9 +348,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   Ccorr=1   ;Preps the data for the external c-program to do the correlation calculations fast. 
   ;********************************************************
 
-  ; create gaussian weights used for smoothing the angular field
-  ; howmuch (pixels out of 256) controls the smoothing of the angular correlation file
-
   DEFSYSV, '!recursion_level',0L
   DEFSYSV, '!max_recursion_level', 5000L
 
@@ -614,20 +611,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         angle_histogram[*,i] = single_angle_histogram[0:59]
         angle_histogram[0,i] = temporary(angle_histogram[0,i]) + single_angle_histogram[60]
       endif
-      single_angle_histogram=!NULL
-
-
-
-      ;      Now we have origimg, bondsimg, rgb_angle_image to work with
-      ;      newimg=origimg*.5+rgb_angle_image*.5
-      rgb_orig = bytarr(3,!xss+1,!yss+1)
-      rgb_orig[0,*,*]=data
-      rgb_orig[1,*,*]=data
-      rgb_orig[2,*,*]=data
-      newimg=rgb_orig*.5+rgb_angle_image*.5
-
-      rgb_angle_image=!NULL
-
+ 
       ;In this section, we draw defects over a large image.
       ;first, open a window as a buffer, and draw things there.
       if save_the_all_image_file then begin
@@ -635,8 +619,10 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         if show_computation_times then print,'about to draw defects....'
         sf = 2; scale factor for the whole image
         w=window(/buffer,dimensions=[sf*(!xss+1),sf*(!yss+1)])
+        ;w=window(dimensions=[sf*(!xss+1),sf*(!yss+1)])
         w.uvalue={defect_plot_list:list(), rescale_list:list()}
-        p1 = image(rebin(newimg,3,sf*(!xss+1),sf*(!yss+1)), /overplot, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
+        p1 = image(rebin(data,sf*(!xss+1),sf*(!yss+1)), /overplot, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
+        p2 = image(rebin(rgb_angle_image,3,sf*(!xss+1),sf*(!yss+1)), /overplot, margin=0, transparency=50, axis_style=0)
         ;add annotations as below
         add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_diameter
         add_dislocations_to_window, w, sf, goodx, goody, edges, bound, nvertices
@@ -750,11 +736,11 @@ end
 pro count_types_of_defects, goodx, goody, edges, disc, unbounddisc, inbounds, bound
    print,"# of dislocations = ", total(bound, /integer) /2
    print,"# of spheres = ", n_elements(goodx)
-   print,"# of inbounds spheres = ", total(inbounds, /integer)
-   print,"Total # of 4-, 5, 7, 8+", total(disc le 4, /integer), total(disc eq 5, /integer), total(disc eq 7, /integer), total(disc ge 8, /integer)
+   print,"# of  inbounds spheres =  ", total(inbounds, /integer)
+   print,"Total # of    4-, 5, 7, 8+", total(disc le 4, /integer), total(disc eq 5, /integer), total(disc eq 7, /integer), total(disc ge 8, /integer)
    print,"# of inbounds 4-, 5, 7, 8+", total((disc le 4) * inbounds, /integer), total((disc eq 5) * inbounds, /integer), $
                                       total((disc eq 7) * inbounds, /integer), total((disc ge 8) * inbounds, /integer)
-   print,"# of unbounded 5, 7:", total((unbounddisc le -1) * inbounds, /integer), total((unbounddisc ge 1) * inbounds, /integer)
+   print,"# of unbounded 5, 7:      ", total((unbounddisc le -1) * inbounds, /integer), total((unbounddisc ge 1) * inbounds, /integer)
 end
 
 function generate_smooth_angle_array, bondsx,bondsy,bondsangle,bondlength, xss, yss
