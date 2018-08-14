@@ -401,6 +401,7 @@ END
 
 
 pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter,stay=stay,wait=wait
+  !EXCEPT=1
 
   ; Safe Switches :
   ;     /filtered : tells IDL that the image is already filtered, and does not need the additional
@@ -426,7 +427,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   use_debug_mode_filename = 1
   debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
   do_angle_histogram = 1  ;whether to output angle histogram file
-  save_bw_angle_tif = 0; whether to save b&w tif showing orientation (separate from the color tif file)
   save_filtered_image =1 ; whether to save bandpass filtered version of input image
   save_the_all_image_file = 1 ; whether to save image with original image, orientation field, and defects.  Somehow this takes a long time.
   save_the_spheres_image_file = 1;
@@ -442,9 +442,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   DEFSYSV, '!draw_recursively', 1
   DEFSYSV, '!recursion_level',0L
   DEFSYSV, '!max_recursion_level', 5000L
-  DEFSYSV, '!colordisloc' , rgbcolor(255,255,0) ; yellow
-  DEFSYSV, '!colorbond' , rgbcolor(0,0,255); blue
-  DEFSYSV, '!colorwhite' , rgbcolor(255,255,255) ; white
 
   howmuch=16
 
@@ -546,7 +543,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
 
       nvertices=n_elements(data1[0,1:*])
-      print, nvertices
 
       ;Matt was fiddling with these next few lines to try to avoid an apparent vertex at (0,0)
       goodx[0:nvertices-1]=data1[0,1:*]
@@ -666,7 +662,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
 
       ; runs Matt's code on finding dislocations
-      ; at the return, bound will have the bonded nighbours, in the "edges" format
+      ; at the return, bound will have the bonded neighbors, in the "edges" format
       ; read the idl help on "triangulate" for an explanation of the format
       ; bound[i] will be 1 if there is a bond or 0 otherwise
       bound=intarr(nedges)
@@ -745,7 +741,13 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ;      smooth,bsinangle, smoothbsinangle, weights, howmuch
       smoothbcosangle = fftsmooth(bcosangle, long(bondlength))
       smoothbsinangle = fftsmooth(bsinangle, long(bondlength))
-      smoothbangle=-((float(atan(smoothbsinangle, smoothbcosangle))) * 180.0 / !pi ) +180
+
+      ;this inverse tangent always throws a floating point underflow error, but it seems harmless.
+      !EXCEPT=0
+      smoothbangle = -((float(atan(smoothbsinangle, smoothbcosangle))) * 180.0 / !pi ) + 180.0
+      junk_variable = check_math()
+      !EXCEPT=1
+      
       time2=systime(1)
       if show_computation_times then print,'done doing the smoothing...','elapsed time for smoothing = ',time2 - time1
       bcosangle=!NULL
@@ -770,7 +772,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         angle_histogram[*,i] = single_angle_histogram[0:59]
         angle_histogram[0,i] = temporary(angle_histogram[0,i]) + single_angle_histogram[60]
       endif
-      single_angle_histogram=0
+      single_angle_histogram=!NULL
 
 
 
@@ -783,10 +785,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       newimg=rgb_orig*.5+rgb_angle_image*.5
 
       rgb_angle_image=!NULL
-
-
-      ;      print,'Writing grayscale angle TIFF file'
-      if (save_bw_angle_tif eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'smooth.tif',bytscl(smoothbangle,MAX= !pi/3,MIN=0)
 
 
       ;In this section, we draw defects over a large image.
@@ -1211,10 +1209,6 @@ pro find_all_unbound_disc, nvertices, edges, unbounddisc, inbounds, bound
   end
 end
 
-
-function rgbcolor,R,G,B
-  return,R+256L*(G+256L*B)
-end
 
 function find_vertices_not_near_perimeter, x,y,conn,outermost, bondlength
   ;The function "Triangulate" returns a list of "boundary" vertices on the outside of the triangulation.
