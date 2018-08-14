@@ -1,110 +1,23 @@
 compile_opt strictarr
 
 ;This program is supposed to read an image file, determine the sphere positions,
-;do the triangulation and generate the orientation field
+;do the triangulation and generate the orientation field.
+;It also does some other calculations.
+
+;This current version is written using the IDL version 8 "new graphics".  
+;It also uses widgets to allow the user to interact with the window, by turning on and off various annotations,
+;zooming in or out, and so on.  This major revision was started in about fall 2017 by Matt Trawick.
 
 ; MAIN PROGRAM
 
-; Search for current work area to find code changes in progress
-; USAGE notes (1/31/2006, by Matt Trawick)
+; USAGE notes, updated 8/14/2018 by Matt Trawick)
 ; 1.  Start IDL
-; 2. At IDL prompt, type: cd,'C:\Research Data\Collidl'
-; 3. File -> Open... collidlv1.48.pro, or whatever the latest version is
-; 4. Run -> Compile All
-; 5. Run -> Compile All  (Again!)
-; 6. At IDL prompt, type: collidl, spheresize=6, /stay (or whatever switches you want).
+; 2. At IDL prompt, type: cd,'C:\Research Data\Collidl' (or wherever the working code is kept)
+; 3. Load the collidl program and compile it.
+; 4. Either type "collidl" at the IDL prompt, or hit run.  (you can also use switches, like "collidl, spheresize=6, /stay"
+; 5. If there are problems, be sure the use_debug_mode_filename switch is set correctly.
+; 
 
-;v1.49 notes
-;   Excised the correlation function, using collidl largely as a data prep mechanism
-;   Function now exists as an external applet due to memory usage issues,
-;
-;
-;v1.48 notes (as of 8/09/05):
-;   By Matt Trawick
-;   Adding a new internal switch, "postscript_defects", which generates a postscript file output of
-;   disclinations and dislocations, similar to the old C version.  (Advantage: Postscript has arbitrarily high
-;   resolution, so image has potential to look much nicer.  Disadvantage: slow, need to convert manually to .tif
-;   file eventually.
-;
-;v1.45 notes (as of 6/23/05):
-;   By Brian Salmons
-;
-;   This version seeks to eliminate some of the annoying problems inherent in the program and
-;   in v1.4.  There are many changes, including:
-;     -Now checks whether to close the windows automatically when there are multiple images run through
-;     -Now checks to see if any images were actually selected, preventing a crash
-;     -Global workaround.  At the cost of slight speed (about two seconds at 4096x4096 pixels),
-;      the IDL global variables have been worked around and are passed.  This prevents the need to
-;      constantly reset the IDE and allows multiple images to be run in a single pass as originally
-;      designed.
-;     -Better memory clearing.  Memory clears that were in if-loops have now been moved to exterior locations
-;      or cleared in multiple areas.  Some variables include testing to determine whether they are used,
-;      indicating whether they should be created or not.
-;     -Better memory management.  Some variables used to be created at the beginning that were not used until
-;      the end.  Many of these have been fixed and most variables are created when needed and cleared after.
-;     -New Switch: /filtered added.  This indicates that the image has already been filtered externally before
-;      loading into this application, and thus additional filtering is not needed or may be harmfull to
-;      location data.  This tag simply skips the filter process within the code.  Also helps on extremely
-;      large images in which there is not enough memory for the fft code in the band pass filter.
-;     -Now allows image "trains" (multiple images within one run) to be analyzed (including large images).
-;
-;;      -Windows only version.  Relies on Virtual Memory, rather than IDL Pixmap for greater range
-;
-;
-;   Feasible maximum image size in this version is 4096x4096, seems regardless of scale.
-;
-;
-;
-;
-;V1.4 notes (as of 6/22/05):
-;   By Brian Salmons
-;
-;   This version of the program has limitations placed on it by the interface with windows
-;   in how it displays large images.  On our test machine, images of 2048x2048 pixels
-;   could be displayed in all four windows at once (original, bonds, angle, and all).
-;   However, at the next largest power of two (4096x4096 pixels), Windows ran out of virtual
-;   memory of the backbuffer.  A backbuffer is needed, due to the save files being generated
-;   from the displayed images; without the backbuffer, only what is on screen is saved and
-;   the rest is lost.  Similarly, the pixmap buffers also ran out of memory, and thus had
-;   to be switched to remain=1 (windows virtual memory), eliminating the functionality on X-windows
-;   systems at this size and larger.  To solve this, only two images can be displayed at a time using
-;   windows virtual memory (worth checking with IDL pixmap for X-windows functionality, though pixmap overflow
-;   forced us to comment out the copy code in the saveimage() routine.  In its current state, it is simply
-;   TVRD().  Therefore, it may not be possible to similarly use pixmaps for displaying)).  Therefore,
-;   an automatic check is in place to close windows if the open image is larger than 2048x2048.
-;
-;   In future versions, there will also be a similar switch on display method in the displaying of images,
-;   so that small image function can be restored to X-windows machines, while allowing Windows to operate
-;   on larger images than pixmap memory allows.  Furthermore, try blocks will be in place to allow
-;   backwards compatibility for machines to default from both pixmap and to closing images
-;   if memory is not available.
-;
-;   ALL of these conditions to the operation of this program as found above ARE machine specific.  Different
-;   machines are capable of different values, and in this version, code modification is the only way to change
-;   for individual machines.  *To be fixed in future versions.
-;
-;   V1.4 changes:
-;      -Now allows any size image, with a feasible maximum of around 4096x4096 pixels, subject to
-;          individual machines capabilities.
-;      -Memory allocations are not universal.  This allows for drastically faster smaller image
-;          analysis and a theoretically infinite top end.  *Requires reseting of IDE to operate on different
-;        sized images!*
-;      -Forces closing of first two windows (original image and bonds) at image sizes over 2048x2048
-;          pixels to free virtual memory.
-;      -Closing of non-relevant arrays and some deletions.  Some arrays were unneeded or only temporarily
-;          usefull.  These now close after finished to free memory.
-;      -New switches:
-;             -/Scale: scales the image to 1024.   -or-
-;             -Scale=(number): scales the image by a factor of (number).
-;             -spheresize=(number): sets the spheresize to (number), rather than arbitray values.
-;      -Obsolete switches:
-;             -/big          (no longer available)
-;             -/simu        (replaced by spheresize)
-;             -/twomicron     (replaced by spheresize)
-;             -/onemicron     (replaced by spheresize)
-;      -Windows only version.  Relies on Virtual Memory, rather than IDL Pixmap for greater range
-;
-;
 
 pro toggle_spheres, w, state
   w['SPHERES'].hide = 1 - state
@@ -812,12 +725,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
 
 
-
-      bedges=0 ; bedges gets created in do_force and do_bonds conditionals only!
-      btriangles=0 ; btriangles gets created in do_force and do_bonds conditionals only!
-      ;--------------------------------------------------------------
-
-
       imagesize=0
 
       ;--------------------------------------------------------------
@@ -825,13 +732,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       btriangles=0
       newimg=0
       bondsimg=0
-      newred=0
-      newgreen=0
-      newblue=0
-      newbred=0
-      newbgreen=0
-      newbblue=0
-      whatbondstokeep=0
       boutermost=0
       origimg=0
 
