@@ -344,9 +344,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   save_the_all_image_file = 1 ; whether to save image with original image, orientation field, and defects.  Somehow this takes a long time.
   save_the_spheres_image_file = 1;
   show_computation_times = 0
-  ; this is the latest trick, works great
-  Ccorr=1   ;Preps the data for the external c-program to do the
-  ; the correlation calculations fast. Best way so far. By far.
+  Ccorr=1   ;Preps the data for the external c-program to do the correlation calculations fast. 
   ;********************************************************
 
   ; create gaussian weights used for smoothing the angular field
@@ -354,8 +352,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
   DEFSYSV, '!recursion_level',0L
   DEFSYSV, '!max_recursion_level', 5000L
-
-  howmuch=16
 
   ;     cd, "E:\matt\research\idl_trawick\simsph\w8.25_eta.4\smaller\trials1-9"
   ;     cd, "/home/angelscu/temp/081202/1.25"
@@ -624,49 +620,19 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       ;--------------------------------------------------------------
 
-
       bondsx=bondsx(0:bondcount-1)
       bondsy=bondsy(0:bondcount-1)
       bondsangle=bondsangle(0:bondcount-1)
       print,'Found ', bondcount,' Delauney bonds'
 
-
-      triangulate, bondsx, bondsy, btriangles, boutermost, CONNECTIVITY = bedges   ;bedges, btriangles gets created here!
-      bcutoff=3*howmuch
-      ;get an interpolated image of the bonds angles
-      bcosangle=trigrid(bondsx,bondsy,cos(6.0*bondsangle),btriangles, NX=(!xss+1),NY=(!yss+1))
-      bsinangle=trigrid(bondsx,bondsy,sin(6.0*bondsangle),btriangles, NX=(!xss+1),NY=(!yss+1))
-
-      ; Do gaussian smoothing on the bond angle file
-      smoothbcosangle=fltarr(!xss+1,!yss+1)
-      smoothbsinangle=fltarr(!xss+1,!yss+1)
       time1=systime(1)
       if show_computation_times then print,'elapsed time so far: ', time1-time0
       if show_computation_times then print,'starting doing the smoothing...'
-      ;      smooth,bcosangle, smoothbcosangle, weights, howmuch
-      ;      smooth,bsinangle, smoothbsinangle, weights, howmuch
-      smoothbcosangle = fftsmooth(bcosangle, long(bondlength))
-      smoothbsinangle = fftsmooth(bsinangle, long(bondlength))
-
-      ;this inverse tangent always throws a floating point underflow error, but it seems harmless.
-      !EXCEPT=0
-      smoothbangle = -((float(atan(smoothbsinangle, smoothbcosangle))) * 180.0 / !pi ) + 180.0
-      junk_variable = check_math()
-      !EXCEPT=1
-      
+      smoothbangle = generate_smooth_angle_array(bondsx,bondsy,bondsangle,bondlength,!xss,!yss)
+      rgb_angle_image = angle_array_to_rgb(smoothbangle)
+      write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_angle.tif', rgb_angle_image, compression=1
       time2=systime(1)
       if show_computation_times then print,'done doing the smoothing...','elapsed time for smoothing = ',time2 - time1
-      bcosangle=!NULL
-      bsinangle=!NULL
-      smoothbsinangle=!NULL
-      smoothbcosangle=!NULL
-
-      HSV_array = replicate(1.0,3,!xss+1,!yss+1)
-      HSV_array[0,*,*]=smoothbangle
-      rgb_angle_image = replicate(0B,3,!xss+1,!yss+1)
-      color_convert, HSV_array, rgb_angle_image, /HSV_RGB
-
-      write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_angle.tif', rgb_angle_image, compression=1
 
       widg_win.select
       orient_img=image(rgb_angle_image, /overplot, NAME = 'ORIENT_IMG', margin=0, transparency=50, zvalue=-.01, axis_style=0)
@@ -810,6 +776,39 @@ end
 ;
 ;
 ; **************************************************************************************
+
+
+function generate_smooth_angle_array, bondsx,bondsy,bondsangle,bondlength, xss, yss
+
+  triangulate, bondsx, bondsy, btriangles, boutermost, CONNECTIVITY = bedges   ;bedges, btriangles gets created here!
+  ;bcutoff=3*howmuch
+  ;get an interpolated image of the bonds angles
+  bcosangle=trigrid(bondsx,bondsy,cos(6.0*bondsangle),btriangles, NX=(!xss+1),NY=(!yss+1))
+  bsinangle=trigrid(bondsx,bondsy,sin(6.0*bondsangle),btriangles, NX=(!xss+1),NY=(!yss+1))
+
+  ; Do gaussian smoothing on the bond angle file
+  smoothbcosangle=fltarr(!xss+1,!yss+1)
+  smoothbsinangle=fltarr(!xss+1,!yss+1)
+  ;      smooth,bcosangle, smoothbcosangle, weights, howmuch
+  ;      smooth,bsinangle, smoothbsinangle, weights, howmuch
+  smoothbcosangle = fftsmooth(bcosangle, long(bondlength))
+  smoothbsinangle = fftsmooth(bsinangle, long(bondlength))
+
+  ;this inverse tangent always throws a floating point underflow error, but it seems harmless.
+  !EXCEPT=0
+  smoothbangle = -((float(atan(smoothbsinangle, smoothbcosangle))) * 180.0 / !pi ) + 180.0
+  junk_variable = check_math()
+  !EXCEPT=1
+  return,smoothbangle
+end
+
+function angle_array_to_rgb, smoothbangle
+  HSV_array = replicate(1.0,3,!xss+1,!yss+1)
+  HSV_array[0,*,*]=smoothbangle
+  rgb_angle_image = replicate(0B,3,!xss+1,!yss+1)
+  color_convert, HSV_array, rgb_angle_image, /HSV_RGB
+  return, rgb_angle_image
+end
 
 pro write_output_for_correlation_function, fs,bondsx,bondsy,bondsangle,bondcount
 
