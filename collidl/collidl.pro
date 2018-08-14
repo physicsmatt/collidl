@@ -339,6 +339,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
   use_debug_mode_filename = 1
   debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
+  debug_mode_filename = "../../collidl_test_images/2017tests/smalltest.tif"
   do_angle_histogram = 1  ;whether to output angle histogram file
   save_filtered_image =1 ; whether to save bandpass filtered version of input image
   save_the_all_image_file = 1 ; whether to save image with original image, orientation field, and defects.  Somehow this takes a long time.
@@ -511,11 +512,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       bondsl=fltarr(MAX_BOND_NUMBER)
       bondcount=0L;
 
-      discx=fltarr(MAX_BOND_NUMBER)
-      discy=fltarr(MAX_BOND_NUMBER)
-      discangle=fltarr(MAX_BOND_NUMBER)
-      disccount=0L;
-
       nedges=n_elements(edges)
 
       ;Below are two methods to find spheres "near the edge", which may affect their number of nearest neighbors.
@@ -555,25 +551,21 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       unbounddisc=disc-6; unbound disclinationality phew !
       bondsl=0
 
-      ;size of a disclination square on the screen
-      discsize=1
+      ; Runs Matt's code on finding dislocations.
+      ; The function returns a boolean array, corresponding to whether each
+      ; edge in "edges" is or is not a dislocation.
+      ; (Read the idl help on "triangulate" for an explanation of the format of edges, under "connectivity")
+      ; bound[i] will be 1 if the edge is a dislocation, or 0 otherwise
+      bound = find_all_unbound_disc (nvertices, edges, unbounddisc, inbounds)
 
-      disc5=0 ; # inbounds 5s, total
-      disc7=0 ; # inbounds 7s, total
-
-
-
-      ; runs Matt's code on finding dislocations
-      ; at the return, bound will have the bonded neighbors, in the "edges" format
-      ; read the idl help on "triangulate" for an explanation of the format
-      ; bound[i] will be 1 if there is a bond or 0 otherwise
-      bound=intarr(nedges)
-      find_all_unbound_disc, nvertices, edges, unbounddisc, inbounds, bound 
-
-      disc5=0; total # 5s
-      disc7=0; total # 7s
+      count_types_of_defects, goodx, goody, edges, disc, unbounddisc, inbounds, bound
       unbound5=0
       unbound7=0
+      Summary_of_Data[2,i]=unbound5
+      Summary_of_Data[3,i]=unbound7
+      ; good trick :  total(bound) = 2*#dislocations
+      Summary_of_Data[4,i]=total(bound)/2
+
 
       ;Now draw triangulation---------------------
       listedges=list()
@@ -595,28 +587,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         /overplot, NAME = 'TRIANGULATION', color=[0,0,255],thick=2)
       widg_win.uvalue.rescale_list.add, list('thick', triangulation, 2)
 
-      ;--------------------------------------------------------
-
-
-      print, "Found total 5's and 7's : ", disc5, disc7
-      print, "Found total unbound 5's and 7's : ", unbound5, unbound7
-
-
-      Summary_of_Data[2,i]=unbound5
-      Summary_of_Data[3,i]=unbound7
-
-      ; Now we need to find the dislocations and calculate their correlations
-
-
-      ; good trick :  total(bound) = 2*#dislocations
-      Summary_of_Data[4,i]=total(bound)/2
-
-      ;bound=0 ;never used again
-
-      ;--------------------------------------------------------------
-      discx=0
-      discy=0
-      discangle=0
 
       ;--------------------------------------------------------------
 
@@ -658,7 +628,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       rgb_angle_image=!NULL
 
-
       ;In this section, we draw defects over a large image.
       ;first, open a window as a buffer, and draw things there.
       if save_the_all_image_file then begin
@@ -689,6 +658,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       
       add_disclinations_to_window, widg_win, 1, goodx, goody, disc, unbounddisc, sphere_diameter
       add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
+      ;color_selected_points_in_window, widg_win, 1, goodx, goody, where(inbounds eq 0), sphere_diameter, [0,0,0]
 
 
       imagesize=0
@@ -777,6 +747,15 @@ end
 ;
 ; **************************************************************************************
 
+pro count_types_of_defects, goodx, goody, edges, disc, unbounddisc, inbounds, bound
+   print,"# of dislocations = ", total(bound, /integer) /2
+   print,"# of spheres = ", n_elements(goodx)
+   print,"# of inbounds spheres = ", total(inbounds, /integer)
+   print,"Total # of 4-, 5, 7, 8+", total(disc le 4, /integer), total(disc eq 5, /integer), total(disc eq 7, /integer), total(disc ge 8, /integer)
+   print,"# of inbounds 4-, 5, 7, 8+", total((disc le 4) * inbounds, /integer), total((disc eq 5) * inbounds, /integer), $
+                                      total((disc eq 7) * inbounds, /integer), total((disc ge 8) * inbounds, /integer)
+   print,"# of unbounded 5, 7:", total((unbounddisc le -1) * inbounds, /integer), total((unbounddisc ge 1) * inbounds, /integer)
+end
 
 function generate_smooth_angle_array, bondsx,bondsy,bondsangle,bondlength, xss, yss
 
@@ -1067,15 +1046,16 @@ pro try_to_find_mates_for,vertex,nvertices,edges,unbounddisc, inbounds, inproces
   endif
 end
 
-pro find_all_unbound_disc, nvertices, edges, unbounddisc, inbounds, bound
+function find_all_unbound_disc, nvertices, edges, unbounddisc, inbounds
+  bound = intarr(n_elements(edges))  ;a boolean array that will store whether each edge is a dislocation
   inprocess=intarr(nvertices)
   ButtInOnAble=replicate(1,nvertices,2)
   for i=long(0), nvertices-1 do begin
     ;     print, "vertex ", i, unbounddisc[i]
     try_to_find_mates_for,i,nvertices,edges,unbounddisc, inbounds, inprocess,bound, ButtInOnAble
   end
+  return,bound
 end
-
 
 function find_vertices_not_near_perimeter, x,y,conn,outermost, bondlength
   ;The function "Triangulate" returns a list of "boundary" vertices on the outside of the triangulation.
@@ -1084,7 +1064,7 @@ function find_vertices_not_near_perimeter, x,y,conn,outermost, bondlength
 
   ;time0=systime(1)
 ;  print,"starting to find edge vertices"
-  is_near_perimeter = intarr((size(x))[1])
+  is_near_perimeter = intarr(n_elements(x))
   num_perimeter_verts = (size(outermost))[1]
   ;for efficiency, prefill an array with perimeter points:
   L=fltarr(2,num_perimeter_verts + 1)
