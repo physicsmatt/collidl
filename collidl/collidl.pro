@@ -439,7 +439,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   ; create gaussian weights used for smoothing the angular field
   ; howmuch (pixels out of 256) controls the smoothing of the angular correlation file
 
-  DEFSYSV, '!draw_recursively', 1
   DEFSYSV, '!recursion_level',0L
   DEFSYSV, '!max_recursion_level', 5000L
 
@@ -522,10 +521,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
 
       ; used to hold the cooordinates of the particles
-
-      ; previously global, then passed, now in a common block to avoid passing.
-      Common globalgood, goodx, goody      ;this is very slightly slower, but it IS cleaner than passing 392039238 times
-
       goodsize = size(data1)
       goodx=fltarr(goodsize[2]-1)   ;probably exist until end, previously global
       goody=fltarr(goodsize[2]-1)   ;probably exist until end, previously global
@@ -1019,13 +1014,7 @@ pro make_single_bond_between,vertex1, vertex2,nvertices,edges,unbounddisc, inbou
   unbounddisc[vertex2]=var2-var21
 
   ;   print, "making bond between ",vertex1,vertex2
-
-  if (!draw_recursively eq 0) then begin
-    Common globalgood, goodx, goody
-    plots,[!goodx[vertex1]/!xss,!goodx[vertex2]/!xss],[1-!goody[vertex1]/!yss,1-!goody[vertex2]/!yss],/normal,color=!colordisloc,thick=2
-  end
 end
-
 
 
 
@@ -1046,12 +1035,6 @@ pro break_single_bond_between,vertex1, vertex2,nvertices,edges,unbounddisc, inbo
 
   ;   print, "breaking bond between ",vertex1,vertex2
   ;erase old bond
-
-  if (!draw_recursively eq 0) then begin
-    Common globalgood, goodx, goody
-    plots,[!goodx[vertex1]/!xss,!goodx[vertex2]/!xss],[1-!goody[vertex1]/!yss,1-!goody[vertex2]/!yss],/normal,color=!colorwhite,thick=2
-    plots,[!goodx[vertex1]/!xss,!goodx[vertex2]/!xss],[1-!goody[vertex1]/!yss,1-!goody[vertex2]/!yss],/normal,color=!colorbond,thick=1.5
-  end
 end
 
 
