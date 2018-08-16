@@ -368,7 +368,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   if ((n_elements(fs) gt 0) AND (strcmp(fs[0],'') eq 0)) then begin
     if ((strmid(strlowcase(fs(0)),strlen(fs(0))-3,3) ne 'tif') and (strmid(strlowcase(fs(0)),strlen(fs(0))-3,3) ne 'dat'))then readlist,fs(0),fs,path=ps else fs=[fs]
     ; this is where all the info is dumped, then written to the summary file
-    Summary_of_Data=fltarr(10, n_elements(fs))
+    Summary_of_Data=fltarr(16, n_elements(fs))
     print,fs
 
     if (do_angle_histogram eq 1) then begin
@@ -558,14 +558,9 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ; bound[i] will be 1 if the edge is a dislocation, or 0 otherwise
       bound = find_all_unbound_disc (nvertices, edges, unbounddisc, inbounds)
 
-      count_types_of_defects, goodx, goody, edges, disc, unbounddisc, inbounds, bound
-      unbound5=0
-      unbound7=0
-      Summary_of_Data[2,i]=unbound5
       Summary_of_Data[3,i]=unbound7
       ; good trick :  total(bound) = 2*#dislocations
-      Summary_of_Data[4,i]=total(bound)/2
-
+      Summary_of_Data[*,i] = count_types_of_defects(goodx, goody, edges, disc, unbounddisc, inbounds, bound)
 
       ;Now draw triangulation---------------------
       listedges=list()
@@ -649,16 +644,13 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
       ;color_selected_points_in_window, widg_win, 1, goodx, goody, where(inbounds eq 0), sphere_diameter, [0,0,0]
 
-widg_win.refresh
-      imagesize=0
-
-      ;--------------------------------------------------------------
-      image1=0
-      btriangles=0
-      newimg=0
-      bondsimg=0
-      boutermost=0
-      origimg=0
+;      imagesize=0
+;      image1=0
+;      btriangles=0
+;      newimg=0
+;      bondsimg=0
+;      boutermost=0
+;      origimg=0
 
       ;ccorr
       ;********************
@@ -670,14 +662,6 @@ widg_win.refresh
       time_ccorr1=systime(1)
       if show_computation_times then print,'done with ccorr; elapsed time = ',time_ccorr1 - time_ccorr0
 
-
-
-      data=0
-
-
-      x=0
-      smoothbangle=0
-      ;direct
 
       print, 'All done with ',fs[i],'.'
 
@@ -697,15 +681,12 @@ widg_win.refresh
       printf,format='(60I)',angle_histogram_unit,angle_histogram
       free_lun,angle_histogram_unit
     endif
-    angle_histogram=0
-
-
 
 
     ; output all data into the summary file
     openw,u,strmid(fs[0],0,strlen(fs[0])-4)+'summary.dat',/get_lun
     for LongIndex=0L, n_elements(fs)-1 do begin
-      printf,u,Summary_of_Data[0,LongIndex],Summary_of_Data[1,LongIndex],Summary_of_Data[2,LongIndex],Summary_of_Data[3,LongIndex],Summary_of_Data[4,LongIndex],Summary_of_Data[5,LongIndex]," ",fs[LongIndex]
+      printf,u,Summary_of_Data[*,LongIndex]
     endfor
     free_lun,u
 
@@ -731,15 +712,20 @@ end
 ;
 ; **************************************************************************************
 
-pro count_types_of_defects, goodx, goody, edges, disc, unbounddisc, inbounds, bound
-   print,"# of dislocations = ", total(bound, /integer) /2
-   print,"# of spheres = ", n_elements(goodx)
-   print,"# of  inbounds spheres =  ", total(inbounds, /integer)
-   print,"Total # of    4-, 5, 7, 8+", total(disc le 4, /integer), total(disc eq 5, /integer), total(disc eq 7, /integer), total(disc ge 8, /integer)
-   print,"# of inbounds 4-, 5, 7, 8+", total((disc le 4) * inbounds, /integer), total((disc eq 5) * inbounds, /integer), $
-                                      total((disc eq 7) * inbounds, /integer), total((disc ge 8) * inbounds, /integer)
-   print,"# of unbounded 5, 7:      ", total((unbounddisc le -1) * inbounds, /integer), total((unbounddisc ge 1) * inbounds, /integer)
-end
+function count_types_of_defects, goodx, goody, edges, disc, unbounddisc, inbounds, bound
+   data_row = intarr(16)
+   data_row[0] = total(bound, /integer) /2 & print,"# of dislocations = ", data_row[0] 
+   data_row[1] = n_elements(goodx) & print,"# of spheres = ", data_row[1]
+   data_row[2] = total(inbounds, /integer) & print,"# of  inbounds spheres =  ", total(inbounds, /integer)
+   data_row[3:6] = [total(disc le 4, /integer), total(disc eq 5, /integer), total(disc eq 7, /integer), total(disc ge 8, /integer)] 
+       print,"Total # of    4-, 5, 7, 8+", data_row[3:6]
+   data_row[7:10] = [total((disc le 4) * inbounds, /integer), total((disc eq 5) * inbounds, /integer), $
+                     total((disc eq 7) * inbounds, /integer), total((disc ge 8) * inbounds, /integer)]
+       print,"# of inbounds 4-, 5, 7, 8+", data_row[7:10] 
+   data_row[11:12] = [total((unbounddisc le -1) * inbounds, /integer), total((unbounddisc ge 1) * inbounds, /integer)]
+       print,"# of unbounded 5, 7:      ", data_row[11:12] 
+   return,data_row
+end 
 
 function generate_smooth_angle_array, bondsx,bondsy,bondsangle,bondlength, xss, yss
 

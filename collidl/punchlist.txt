@@ -7,6 +7,7 @@ refine sphere location algorithm
 Fix bug for multiple files that windows don't refresh until program done.
 Fix keyboard focus so keys work after clicking buttons.
 Fix flipped output files
+Check the angle histogram business
 
 Low:
 Add scroll bars?
