@@ -200,7 +200,7 @@ function annotation_button_event_handler, event
 end
 
 PRO collidl_widget_EVENT, event
-  ;print,"single button event"
+  print,"single button event"
   ;print,event
   ;print, TAG_NAMES(event)
   ;print, TAG_NAMES(event, /STRUCTURE_NAME)
@@ -249,8 +249,8 @@ PRO collidl_widget_EVENT, event
   ENDCASE
 END
 
-function create_collidl_widgets
-  base1 = WIDGET_BASE(/COLUMN, TITLE='Test Collidl', /TLB_SIZE_EVENTS)
+function create_collidl_widgets, filenamestring
+  base1 = WIDGET_BASE(/COLUMN, TITLE='Collidl: ' + filenamestring, /TLB_SIZE_EVENTS)
 
   ; Create the base for the button:
   base2 = WIDGET_BASE(base1, /ROW, /ALIGN_CENTER)
@@ -338,8 +338,11 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   ; 1 = do it, 0 = don't
 
   use_debug_mode_filename = 1
-  debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
-  debug_mode_filename = "../../collidl_test_images/2017tests/smalltest.tif"
+  cd,'C:\Users\mtrawick\Desktop\github\collidl_test_images\2017tests'
+    debug_mode_filename = "filelist.txt"
+;  debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
+;  debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
+;  debug_mode_filename = "../../collidl_test_images/2017tests/smalltest.tif"
   do_angle_histogram = 1  ;whether to output angle histogram file
   save_filtered_image =1 ; whether to save bandpass filtered version of input image
   save_the_all_image_file = 1 ; whether to save image with original image, orientation field, and defects.  Somehow this takes a long time.
@@ -372,16 +375,16 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       angle_histogram = lonarr(60,n_elements(fs))
     endif
 
+    ; THE MASTER LOOP------------------------------------------------------------------------------------------
+    time0=systime(1)
+    for i=0,n_elements(fs)-1 do begin
 
-    base1 = create_collidl_widgets()
+    base1 = create_collidl_widgets(fs[i])
     wDraw = WIDGET_INFO(base1, FIND_BY_UNAME = 'DRAW')
     WIDGET_CONTROL, wDraw, GET_VALUE = widg_win
     widg_win.select
     print,'number of files is',n_elements(fs)
 
-    ; THE MASTER LOOP------------------------------------------------------------------------------------------
-    time0=systime(1)
-    for i=0,n_elements(fs)-1 do begin
       close,/all
       print,'Now working on : ',fs(i)
 
@@ -646,7 +649,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
       ;color_selected_points_in_window, widg_win, 1, goodx, goody, where(inbounds eq 0), sphere_diameter, [0,0,0]
 
-
+widg_win.refresh
       imagesize=0
 
       ;--------------------------------------------------------------
@@ -672,22 +675,17 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       data=0
 
 
-
       x=0
       smoothbangle=0
       ;direct
 
       print, 'All done with ',fs[i],'.'
 
-      if (keyword_set(wait)) then begin
-        ; to give you time to examine the images
-        wait,5
-      endif
-
-
-      if (keyword_set(stay) eq 0) then begin
+      if NOT (keyword_set(stay)) and (n_elements(fs) gt 2) and (i lt n_elements(fs)-1) then begin
+        if keyword_set(wait) then wait,5
         ; destroy all the windows created
-      end
+        WIDGET_CONTROL, base1, /DESTROY
+      endif
 
 
     endfor ; main loop that reads each input file
@@ -893,7 +891,7 @@ function it_would_help_to_bond_nicely ,vertex1,vertex2,edges, unbounddisc, inbou
   nvertices=n_elements(inbounds)
   if ((sign_of(unbounddisc[vertex1]) eq -sign_of(unbounddisc[vertex2])) and (inprocess[vertex2] eq 0) ) then begin
     ;  if (((unbounddisc[vertex1]*unbounddisc[vertex2] lt 0)) and (inprocess(vertex2) eq 0) ) then begin
-    if ((inbounds(vertex2) eq 1) or (outofboundsok eq 1)) then begin
+    if ((inbounds[vertex2] eq 1) or (outofboundsok eq 1)) then begin
       return,1
     end
   end else begin
@@ -1173,3 +1171,24 @@ pro add_dislocations_to_window, w, sf, goodx, goody, edges, bound, nvertices
   w.uvalue.rescale_list.add, list('thick', p, disc_thick)
   w.uvalue.defect_plot_list.add, p
 end
+
+pro readlist,fs,s,path=path
+  openr,u,fs,/get_lun
+  s=strarr(5000)
+  on_ioerror,go_on
+  readf,u,s
+  go_on: free_lun,u
+  s=transpose(s[where(s ne '')])
+  if keyword_set(path) then cd,path
+  get_lun,u
+  on_ioerror,error
+  for i=0,n_elements(s)-1 do begin
+    openr,u,s[i]
+    close,u
+  endfor
+  free_lun,u
+  return
+  error: message,'Cannot open file '+string(i)+': '+s[i]
+end
+
+
