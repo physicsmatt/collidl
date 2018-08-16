@@ -493,6 +493,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ; at the exit, edges will have a weird format, read idl help
       ; on "triangulate" - this is the main source of errors in code
       triangulate, goodx, goody, triangles, outermost, CONNECTIVITY = edges
+      num_bonds = (n_elements(triangles) * 3 + n_elements(outermost) ) / 2
 
       area_per_vertex=1.0*!xss*!yss/nvertices
       area_per_triangle = 0.5 * area_per_vertex
@@ -501,18 +502,10 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       disc=fltarr(nvertices)
       inbounds=intarr(nvertices)
-      ;ButtInOnAble=replicate(1,nvertices,2)   not used until later!
-      ;ButtInOnAble=intarr(nvertices,2)
-      ;ButtInOnAble=1 ;initially, all vertices can be butted in on.
-      MAX_BOND_NUMBER=nvertices*3.25
-      bondsx=fltarr(MAX_BOND_NUMBER)
-      bondsy=fltarr(MAX_BOND_NUMBER)
-      bondsangle=fltarr(MAX_BOND_NUMBER)
-      ;bondsenergy=fltarr(MAX_BOND_NUMBER)
-      bondsl=fltarr(MAX_BOND_NUMBER)
-      bondcount=0L;
-
-      nedges=n_elements(edges)
+      bondsx=fltarr(num_bonds)
+      bondsy=fltarr(num_bonds)
+      bondsangle=fltarr(num_bonds)
+      bondsl=fltarr(num_bonds)
 
       ;Below are two methods to find spheres "near the edge", which may affect their number of nearest neighbors.
       ;(I also tried just finding the nearest neighbors of all boundary points of the triangulation, but that wasn't sufficient.)
@@ -522,10 +515,11 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ;inbounds[where((goodx gt inboundsmult*bondlength) and (goodx lt !xss-inboundsmult*bondlength) and (goody gt inboundsmult*bondlength) and (goody lt !yss-inboundsmult*bondlength))]=1;
       
       ;Second way is to use the actual distance to the perimeter of the triangulation 
-      inbounds = find_vertices_not_near_perimeter(goodx,goody,connectivity,outermost,bondlength)
+      inbounds = find_vertices_not_near_perimeter(goodx,goody,outermost,bondlength)
 
       ;color_selected_points_in_window, widg_win, 1, goodx, goody, where(inbounds eq 0), sphere_diameter, [0,0,0]
 
+      bondcount=0L;
       for i1=0L,nvertices-1 do begin
         disc[i1]=edges[i1+1]-edges[i1] ; # neighbors
         for j1=edges[i1],edges[i1+1]-1 do begin
@@ -545,6 +539,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       endfor
 
       bondslength=total(bondsl)/bondcount
+      print,'Found ', bondcount,' Delauney bonds'
       print, "Average Bondlength, by direct calculation = ", bondslength
       print, "Median Bondlength, by direct calculation = ", median(bondsl[0:bondcount-1])
 
@@ -558,8 +553,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ; bound[i] will be 1 if the edge is a dislocation, or 0 otherwise
       bound = find_all_unbound_disc (nvertices, edges, unbounddisc, inbounds)
 
-      Summary_of_Data[3,i]=unbound7
-      ; good trick :  total(bound) = 2*#dislocations
       Summary_of_Data[*,i] = count_types_of_defects(goodx, goody, edges, disc, unbounddisc, inbounds, bound)
 
       ;Now draw triangulation---------------------
@@ -585,10 +578,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       ;--------------------------------------------------------------
 
-      bondsx=bondsx(0:bondcount-1)
-      bondsy=bondsy(0:bondcount-1)
-      bondsangle=bondsangle(0:bondcount-1)
-      print,'Found ', bondcount,' Delauney bonds'
 
       time1=systime(1)
       if show_computation_times then print,'elapsed time so far: ', time1-time0
@@ -644,13 +633,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
       ;color_selected_points_in_window, widg_win, 1, goodx, goody, where(inbounds eq 0), sphere_diameter, [0,0,0]
 
-;      imagesize=0
-;      image1=0
-;      btriangles=0
-;      newimg=0
-;      bondsimg=0
-;      boutermost=0
-;      origimg=0
 
       ;ccorr
       ;********************
@@ -1027,7 +1009,7 @@ function find_all_unbound_disc, nvertices, edges, unbounddisc, inbounds
   return,bound
 end
 
-function find_vertices_not_near_perimeter, x,y,conn,outermost, bondlength
+function find_vertices_not_near_perimeter, x,y,outermost, bondlength
   ;The function "Triangulate" returns a list of "boundary" vertices on the outside of the triangulation.
   ;But these "boundary" points are often far apart.  This routine returns a boolean list [0, 1, 0, 0, 1...] 
   ;of which points are within a certain length of the triangulated boundary.
