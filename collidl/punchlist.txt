@@ -4,14 +4,10 @@ High:
 
 Med:
 refine sphere location algorithm
-Get edge vertices from triangulation, not distance
-multiple files; /stay option
-Figure out warnings for multiply defined functions.
+Fix bug for multiple files that windows don't refresh until program done.
 Fix keyboard focus so keys work after clicking buttons.
-Figure out why so slow, redo some switches
-Test on big images
+Fix flipped output files
 
 Low:
 Add scroll bars?
 Add translation limits?
-props = {current:1, color:'blue', linestyle:'dashed', symbol:'triangle', yrange:[0,50]}
