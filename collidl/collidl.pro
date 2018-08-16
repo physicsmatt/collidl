@@ -423,9 +423,8 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       data1=feature(data_filtered,sphere_diameter)
       if (save_filtered_image eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'filtered.tif',reverse(bytscl(data_filtered),2)
 
-      DEFSYSV, '!xss',imagesize[1]-1   ;is this needed?
-      DEFSYSV, '!yss',imagesize[2]-1   ;is this needed?
-
+      xsize = imagesize[1]
+      ysize = imagesize[2]
 
       ; used to hold the cooordinates of the particles
       goodsize = size(data1)
@@ -433,7 +432,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       goody=fltarr(goodsize[2]-1)   ;probably exist until end, previously global
       goodsize=!NULL
 
-      print, "X,Y image size : ", !xss+1, !yss+1
+      print, "X,Y image size : ", xsize, ysize
 
 
       raw_img=image(data, /current, NAME = 'RAW_IMG', margin=0, zvalue=-.03, axis_style=0)
@@ -463,14 +462,14 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       if save_the_spheres_image_file then begin
         time_filespheres0=systime(1)
         sf = 2; scale factor for the whole image
-        w=window(/buffer, dimensions=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
-        p1 = image(rebin(data,sf*(!xss+1),sf*(!yss+1)), /overplot, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
+        w=window(/buffer, dimensions=[sf*(xsize),sf*(ysize)],margin=[0.0,0.0,0.0,0.0])
+        p1 = image(rebin(data,sf*(xsize),sf*(ysize)), /overplot, IMAGE_DIMENSIONS=[sf*(xsize),sf*(ysize)],margin=[0.0,0.0,0.0,0.0])
         ;add annotations as below
-        pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.5 ;at spheresize=6 on a 1024x1024 image, 0.5 was about right.
+        pcircle_size = float(sphere_diameter)/ysize * 1024 / 6 * 0.5 ;at spheresize=6 on a 1024x1024 image, 0.5 was about right.
         spheres=plot(sf*goodx,sf*goody, /overplot, NAME = 'SPHERES', antialias=0,symbol="o",sym_color=[180,255,100], $
           sym_size=pcircle_size, sym_thick = 1.712 * sf*pcircle_size, linestyle='none', /data, axis_style=0)
         ;spheres.rotate, /reset
-        img_circled_spheres = spheres.CopyWindow(border=0, height=sf*(!yss+1))
+        img_circled_spheres = spheres.CopyWindow(border=0, height=sf*(ysize))
         write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_spheres.tif', reverse(img_circled_spheres,3), compression=1
         img_circled_spheres=!NULL
         w.close
@@ -480,7 +479,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       ;now plot spheres on the diplay widget window
       widg_win.select
-      pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.5 ;at spheresize=6 on a 1024x1024 image, 0.5 was about right.
+      pcircle_size = float(sphere_diameter)/ysize * 1024 / 6 * 0.5 ;at spheresize=6 on a 1024x1024 image, 0.5 was about right.
       spheres=plot(goodx,goody, /overplot, NAME = 'SPHERES', antialias=0,symbol="o",sym_color=[180,255,100], $
         sym_size=pcircle_size,linestyle='none', /data, axis_style=0)
       spheres.rotate, /reset
@@ -491,7 +490,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ; on "triangulate" - this is the main source of errors in code
       triangulate, goodx, goody, triangles, outermost, CONNECTIVITY = edges
 
-      area_per_vertex=1.0*!xss*!yss/nvertices
+      area_per_vertex=1.0*xsize*ysize/nvertices
       area_per_triangle = 0.5 * area_per_vertex
       bondlength=sqrt(area_per_triangle*4.0/sqrt(3.0))
       print, "Average bond length by area method = ",bondlength
@@ -503,12 +502,12 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ;First way is to simply use distance from the edge of the picture:
       ;inboundsmult=1.5
       ;inbounds=intarr(nvertices)
-      ;inbounds[where((goodx gt inboundsmult*bondlength) and (goodx lt !xss-inboundsmult*bondlength) and (goody gt inboundsmult*bondlength) and (goody lt !yss-inboundsmult*bondlength))]=1;
+      ;inbounds[where((goodx gt inboundsmult*bondlength) and (goodx lt xsize-1-inboundsmult*bondlength) and (goody gt inboundsmult*bondlength) and (goody lt ysize-1-inboundsmult*bondlength))]=1;
       
       ;Second way is to use the actual distance to the perimeter of the triangulation 
       inbounds = find_vertices_not_near_perimeter(goodx,goody,outermost,bondlength)
 
-      ;color_selected_points_in_window, widg_win, 1, goodx, goody, where(inbounds eq 0), sphere_diameter, [0,0,0]
+      ;color_selected_points_in_window, widg_win, 1, goodx, goody, where(inbounds eq 0), sphere_diameter, [0,0,0], ysize
 
       disc=fltarr(nvertices)
       num_bonds = (n_elements(triangles) * 3 + n_elements(outermost) ) / 2
@@ -522,7 +521,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         for j1=edges[i1],edges[i1+1]-1 do begin
           ; collect angle data from the bond
           if (i1 lt edges[j1]) then begin
-            ;            plots,[goodx[edges[j1]]/!xss,goodx[i1]/!xss],[1-goody[edges[j1]]/!yss,1-goody[i1]/!yss],/normal,color=!colorbond,thick=1.5
             bondsx[bondcount]=(goodx[i1]+goodx[edges[j1]])/2
             bondsy[bondcount]=(goody[i1]+goody[edges[j1]])/2
             bondsl[bondcount]=sqrt((goodx[i1]-goodx[edges[j1]])^2.0+(goody[i1]-goody[edges[j1]])^2.0)
@@ -578,7 +576,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       time1=systime(1)
       if show_computation_times then print,'elapsed time so far: ', time1-time0
       if show_computation_times then print,'starting doing the smoothing...'
-      smoothbangle = generate_smooth_angle_array(bondsx,bondsy,bondsangle,bondlength,!xss,!yss)
+      smoothbangle = generate_smooth_angle_array(bondsx,bondsy,bondsangle,bondlength,xsize,ysize)
       rgb_angle_image = angle_array_to_rgb(smoothbangle)
       write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_angle.tif', reverse(rgb_angle_image,3), compression=1
       time2=systime(1)
@@ -601,15 +599,15 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         time_defects0=systime(1)
         if show_computation_times then print,'about to draw defects....'
         sf = 2; scale factor for the whole image
-        w=window(/buffer,dimensions=[sf*(!xss+1),sf*(!yss+1)])
-        ;w=window(dimensions=[sf*(!xss+1),sf*(!yss+1)])
+        w=window(/buffer,dimensions=[sf*(xsize),sf*(ysize)])
+        ;w=window(dimensions=[sf*(xsize),sf*(ysize)])
         w.uvalue={defect_plot_list:list(), rescale_list:list()}
-        p1 = image(rebin(data,sf*(!xss+1),sf*(!yss+1)), /overplot, IMAGE_DIMENSIONS=[sf*(!xss+1),sf*(!yss+1)],margin=[0.0,0.0,0.0,0.0])
-        p2 = image(rebin(rgb_angle_image,3,sf*(!xss+1),sf*(!yss+1)), /overplot, margin=0, transparency=50, axis_style=0)
+        p1 = image(rebin(data,sf*(xsize),sf*(ysize)), /overplot, IMAGE_DIMENSIONS=[sf*(xsize),sf*(ysize)],margin=[0.0,0.0,0.0,0.0])
+        p2 = image(rebin(rgb_angle_image,3,sf*(xsize),sf*(ysize)), /overplot, margin=0, transparency=50, axis_style=0)
         ;add annotations as below
-        add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_diameter
+        add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_diameter,ysize
         add_dislocations_to_window, w, sf, goodx, goody, edges, bound, nvertices
-        img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
+        img_new_all = p1.CopyWindow(border=0,height=sf*(ysize))
         time_fileall0=systime(1)
         write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,3), compression=1
         time_fileall1=systime(1)
@@ -625,7 +623,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ;Now do the same thing on the main window.
       widg_win.select
       
-      add_disclinations_to_window, widg_win, 1, goodx, goody, disc, unbounddisc, sphere_diameter
+      add_disclinations_to_window, widg_win, 1, goodx, goody, disc, unbounddisc, sphere_diameter, ysize
       add_dislocations_to_window, widg_win, 1, goodx, goody, edges, bound, nvertices
       ;color_selected_points_in_window, widg_win, 1, goodx, goody, where(inbounds eq 0), sphere_diameter, [0,0,0]
 
@@ -703,17 +701,17 @@ function count_types_of_defects, goodx, goody, edges, disc, unbounddisc, inbound
    return,data_row
 end 
 
-function generate_smooth_angle_array, bondsx,bondsy,bondsangle,bondlength, xss, yss
+function generate_smooth_angle_array, bondsx,bondsy,bondsangle,bondlength, xsize, ysize
 
   triangulate, bondsx, bondsy, btriangles, boutermost, CONNECTIVITY = bedges   ;bedges, btriangles gets created here!
   ;bcutoff=3*howmuch
   ;get an interpolated image of the bonds angles
-  bcosangle=trigrid(bondsx,bondsy,cos(6.0*bondsangle),btriangles, NX=(!xss+1),NY=(!yss+1))
-  bsinangle=trigrid(bondsx,bondsy,sin(6.0*bondsangle),btriangles, NX=(!xss+1),NY=(!yss+1))
+  bcosangle=trigrid(bondsx,bondsy,cos(6.0*bondsangle),btriangles, NX=(xsize),NY=(ysize))
+  bsinangle=trigrid(bondsx,bondsy,sin(6.0*bondsangle),btriangles, NX=(xsize),NY=(ysize))
 
   ; Do gaussian smoothing on the bond angle file
-  smoothbcosangle=fltarr(!xss+1,!yss+1)
-  smoothbsinangle=fltarr(!xss+1,!yss+1)
+  smoothbcosangle=fltarr(xsize,ysize)
+  smoothbsinangle=fltarr(xsize,ysize)
   ;      smooth,bcosangle, smoothbcosangle, weights, howmuch
   ;      smooth,bsinangle, smoothbsinangle, weights, howmuch
   smoothbcosangle = fftsmooth(bcosangle, long(bondlength))
@@ -728,9 +726,12 @@ function generate_smooth_angle_array, bondsx,bondsy,bondsangle,bondlength, xss, 
 end
 
 function angle_array_to_rgb, smoothbangle
-  HSV_array = replicate(1.0,3,!xss+1,!yss+1)
+  xsize = (size(smoothbangle))[1]
+  ysize = (size(smoothbangle))[2]
+  HSV_array = fltarr(3, xsize, ysize)
   HSV_array[0,*,*]=smoothbangle
-  rgb_angle_image = replicate(0B,3,!xss+1,!yss+1)
+  HSV_array[1:2,*,*]=1.0
+  rgb_angle_image = bytarr(3,xsize,ysize)
   color_convert, HSV_array, rgb_angle_image, /HSV_RGB
   return, rgb_angle_image
 end
@@ -1045,10 +1046,10 @@ function create_neighbor_array, idx, connect
 end
 
 
-pro color_selected_points_in_window, w, sf, goodx, goody, selected_points, sphere_diameter, rgb_color_to_use
+pro color_selected_points_in_window, w, sf, goodx, goody, selected_points, sphere_diameter, rgb_color_to_use, ysize
 ;used for diagnostic purposes
-  psym_size= float(sphere_diameter)/!yss * 1024 / 6 * 0.4 ;at spheresize=6 on a 1024x1024 image, 0.4 was about right.
-  pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.75
+  psym_size= float(sphere_diameter)/ysize * 1024 / 6 * 0.4 ;at spheresize=6 on a 1024x1024 image, 0.4 was about right.
+  pcircle_size = float(sphere_diameter)/ysize * 1024 / 6 * 0.75
   disc_thick=3.0 * sf
   circle_thick=1.0 * sf
   props = {antialias:0, symbol:"o", linestyle:'none'}
@@ -1058,10 +1059,10 @@ pro color_selected_points_in_window, w, sf, goodx, goody, selected_points, spher
   w.uvalue.defect_plot_list.add, p
 end
 
-pro add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_diameter
+pro add_disclinations_to_window, w, sf, goodx, goody, disc, unbounddisc, sphere_diameter, ysize
 
-  psym_size= float(sphere_diameter)/!yss * 1024 / 6 * 0.4 ;at spheresize=6 on a 1024x1024 image, 0.4 was about right.
-  pcircle_size = float(sphere_diameter)/!yss * 1024 / 6 * 0.75
+  psym_size= float(sphere_diameter)/ysize * 1024 / 6 * 0.4 ;at spheresize=6 on a 1024x1024 image, 0.4 was about right.
+  pcircle_size = float(sphere_diameter)/ysize * 1024 / 6 * 0.75
   disc_thick=3.0 * sf
   circle_thick=1.0 * sf
   props = {antialias:0, symbol:"o", linestyle:'none'}
@@ -1128,7 +1129,6 @@ pro add_dislocations_to_window, w, sf, goodx, goody, edges, bound, nvertices
   secondindex=indgen(listedges.count()/2, /long)*2+1
   connections=transpose([[numverts],[firstindex],[secondindex]])
   connections=reform(connections,n_elements(connections))
-  ;      p=polyline(sf*goodx[listedges.toarray()],sf*(!yss-goody[listedges.toarray()]), antialias = 0 ,connectivity=connections,/data,/overplot, color=[255,255,0],thick=disc_thick)
   p=polyline(sf*goodx[listedges.toarray()],sf*(goody[listedges.toarray()]), antialias = 0 ,connectivity=connections,/data, color=[255,255,0],thick=disc_thick)
   w.uvalue.rescale_list.add, list('thick', p, disc_thick)
   w.uvalue.defect_plot_list.add, p
