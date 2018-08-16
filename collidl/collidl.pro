@@ -490,25 +490,19 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ; at the exit, edges will have a weird format, read idl help
       ; on "triangulate" - this is the main source of errors in code
       triangulate, goodx, goody, triangles, outermost, CONNECTIVITY = edges
-      num_bonds = (n_elements(triangles) * 3 + n_elements(outermost) ) / 2
 
       area_per_vertex=1.0*!xss*!yss/nvertices
       area_per_triangle = 0.5 * area_per_vertex
       bondlength=sqrt(area_per_triangle*4.0/sqrt(3.0))
       print, "Average bond length by area method = ",bondlength
 
-      disc=fltarr(nvertices)
-      inbounds=intarr(nvertices)
-      bondsx=fltarr(num_bonds)
-      bondsy=fltarr(num_bonds)
-      bondsangle=fltarr(num_bonds)
-      bondsl=fltarr(num_bonds)
 
       ;Below are two methods to find spheres "near the edge", which may affect their number of nearest neighbors.
       ;(I also tried just finding the nearest neighbors of all boundary points of the triangulation, but that wasn't sufficient.)
       
       ;First way is to simply use distance from the edge of the picture:
       ;inboundsmult=1.5
+      ;inbounds=intarr(nvertices)
       ;inbounds[where((goodx gt inboundsmult*bondlength) and (goodx lt !xss-inboundsmult*bondlength) and (goody gt inboundsmult*bondlength) and (goody lt !yss-inboundsmult*bondlength))]=1;
       
       ;Second way is to use the actual distance to the perimeter of the triangulation 
@@ -516,6 +510,12 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       ;color_selected_points_in_window, widg_win, 1, goodx, goody, where(inbounds eq 0), sphere_diameter, [0,0,0]
 
+      disc=fltarr(nvertices)
+      num_bonds = (n_elements(triangles) * 3 + n_elements(outermost) ) / 2
+      bondsx=fltarr(num_bonds)
+      bondsy=fltarr(num_bonds)
+      bondsangle=fltarr(num_bonds)
+      bondsl=fltarr(num_bonds)
       bondcount=0L;
       for i1=0L,nvertices-1 do begin
         disc[i1]=edges[i1+1]-edges[i1] ; # neighbors
