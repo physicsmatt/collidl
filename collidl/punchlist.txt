@@ -3,7 +3,7 @@ To do list for collidl code
 High:
 
 Med:
-refine sphere location algorithm
+refine sphere location algorithm?  Check for items too close?
 Fix bug for multiple files that windows don't refresh until program done.
 Fix keyboard focus so keys work after clicking buttons.
 Fix flipped output files

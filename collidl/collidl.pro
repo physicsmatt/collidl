@@ -338,11 +338,11 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   ; 1 = do it, 0 = don't
 
   use_debug_mode_filename = 1
-  cd,'C:\Users\mtrawick\Desktop\github\collidl_test_images\2017tests'
-    debug_mode_filename = "filelist.txt"
+;  cd,'C:\Users\mtrawick\Desktop\github\collidl_test_images\2017tests'
+;    debug_mode_filename = "filelist.txt"
 ;  debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
 ;  debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
-;  debug_mode_filename = "../../collidl_test_images/2017tests/smalltest.tif"
+  debug_mode_filename = "../../collidl_test_images/2017tests/smalltest.tif"
   do_angle_histogram = 1  ;whether to output angle histogram file
   save_filtered_image =1 ; whether to save bandpass filtered version of input image
   save_the_all_image_file = 1 ; whether to save image with original image, orientation field, and defects.  Somehow this takes a long time.
@@ -354,11 +354,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   DEFSYSV, '!recursion_level',0L
   DEFSYSV, '!max_recursion_level', 5000L
 
-  ;     cd, "E:\matt\research\idl_trawick\simsph\w8.25_eta.4\smaller\trials1-9"
-  ;     cd, "/home/angelscu/temp/081202/1.25"
-  ;     cd, "/usr/temp/HardSpheres/fromthanos" ; make this your favorite data directory
   ; read files either as a list (.txt file with all names) or by selecting them by hand
-
   if use_debug_mode_filename then begin
     fs = debug_mode_filename
   endif else begin
@@ -386,11 +382,12 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
     print,'number of files is',n_elements(fs)
 
       close,/all
-      print,'Now working on : ',fs(i)
+      print,'Now working on : ',fs[i]
 
 
-      data=byte(bytscl(read_tiff(fs(i))));
-      ;      data=reverse(data,2)
+      data=byte(bytscl(read_tiff(fs[i], orientation=image_orientation)));
+      print,"tiff image orientation:", image_orientation
+      if image_orientation eq 1 then data = reverse(data,2)
       imagesize=size(data)
       if (keyword_set(invert)) then begin
         data=255-temporary(data)
@@ -424,7 +421,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
 
       data_filtered=bpass(data,1,sphere_diameter)
       data1=feature(data_filtered,sphere_diameter)
-      if (save_filtered_image eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'filtered.tif',bytscl(data_filtered)
+      if (save_filtered_image eq 1) then write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'filtered.tif',reverse(bytscl(data_filtered),2)
 
       DEFSYSV, '!xss',imagesize[1]-1   ;is this needed?
       DEFSYSV, '!yss',imagesize[2]-1   ;is this needed?
@@ -474,7 +471,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
           sym_size=pcircle_size, sym_thick = 1.712 * sf*pcircle_size, linestyle='none', /data, axis_style=0)
         ;spheres.rotate, /reset
         img_circled_spheres = spheres.CopyWindow(border=0, height=sf*(!yss+1))
-        write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_spheres.tif', reverse(img_circled_spheres,2), compression=1
+        write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_spheres.tif', reverse(img_circled_spheres,3), compression=1
         img_circled_spheres=!NULL
         w.close
         time_filespheres1=systime(1)
@@ -538,13 +535,12 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         endfor
       endfor
 
-      bondslength=total(bondsl)/bondcount
+      bondslength=total(bondsl, /double) / bondcount
       print,'Found ', bondcount,' Delauney bonds'
       print, "Average Bondlength, by direct calculation = ", bondslength
       print, "Median Bondlength, by direct calculation = ", median(bondsl[0:bondcount-1])
 
       unbounddisc=disc-6; unbound disclinationality phew !
-      bondsl=0
 
       ; Runs Matt's code on finding dislocations.
       ; The function returns a boolean array, corresponding to whether each
@@ -584,7 +580,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       if show_computation_times then print,'starting doing the smoothing...'
       smoothbangle = generate_smooth_angle_array(bondsx,bondsy,bondsangle,bondlength,!xss,!yss)
       rgb_angle_image = angle_array_to_rgb(smoothbangle)
-      write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_angle.tif', rgb_angle_image, compression=1
+      write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_angle.tif', reverse(rgb_angle_image,3), compression=1
       time2=systime(1)
       if show_computation_times then print,'done doing the smoothing...','elapsed time for smoothing = ',time2 - time1
 
@@ -615,7 +611,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
         add_dislocations_to_window, w, sf, goodx, goody, edges, bound, nvertices
         img_new_all = p1.CopyWindow(border=0,height=sf*(!yss+1))
         time_fileall0=systime(1)
-        write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,2), compression=1
+        write_tiff,strmid(fs[i],0,strlen(fs[i])-4)+'_all.tif', reverse(img_new_all,3), compression=1
         time_fileall1=systime(1)
         if show_computation_times then print,'done with writing file defects; elapsed time = ',time_fileall1 - time_fileall0
         w.close
@@ -639,8 +635,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       time_ccorr0=systime(1)
       if show_computation_times then print,'about to do Ccorr....'
       if (Ccorr eq 1) then write_output_for_correlation_function,fs,bondsx,bondsy,bondsangle,bondcount
-;      bondsx=0
-;      bondsy=0
       time_ccorr1=systime(1)
       if show_computation_times then print,'done with ccorr; elapsed time = ',time_ccorr1 - time_ccorr0
 
