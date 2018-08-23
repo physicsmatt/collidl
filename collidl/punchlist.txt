@@ -4,6 +4,7 @@ High:
 
 Med:
 refine sphere location algorithm?  Check for items too close?
+Figure out why feature(data,6,7) returns different from feature(data,7,7), since diameter rounded up anyway.
 Fix bug for multiple files that windows don't refresh until program done.
 Fix keyboard focus so keys work after clicking buttons.
 Check the angle histogram business
