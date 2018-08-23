@@ -340,9 +340,8 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
   use_debug_mode_filename = 1
 ;  cd,'C:\Users\mtrawick\Desktop\github\collidl_test_images\2017tests'
 ;    debug_mode_filename = "filelist.txt"
-;  debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
-;  debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
-  debug_mode_filename = "../../collidl_test_images/2017tests/smalltest.tif"
+  debug_mode_filename = "../../collidl_test_images/2017tests/double.tif"
+;  debug_mode_filename = "../../collidl_test_images/2017tests/smalltest.tif"
   do_angle_histogram = 1  ;whether to output angle histogram file
   save_filtered_image =1 ; whether to save bandpass filtered version of input image
   save_the_all_image_file = 1 ; whether to save image with original image, orientation field, and defects.  Somehow this takes a long time.
@@ -433,8 +432,6 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       goodsize=!NULL
 
       print, "X,Y image size : ", xsize, ysize
-
-
       raw_img=image(data, /current, NAME = 'RAW_IMG', margin=0, zvalue=-.03, axis_style=0)
       raw_img.rotate, /reset
       filtered_img=image(data_filtered, /overplot, NAME = 'FILTERED_IMG', margin=0, zvalue=-.02)
@@ -448,6 +445,7 @@ pro collidl,saveloc=saveloc,invert=invert,scale=scale,spheresize=sphere_diameter
       ;Matt was fiddling with these next few lines to try to avoid an apparent vertex at (0,0)
       goodx[0:nvertices-1]=data1[0,1:*]
       goody[0:nvertices-1]=data1[1,1:*]
+
 
       if (keyword_set(saveloc)) then begin
         openw,locationfile,strmid(fs[0],0,strlen(fs[0])-4)+'location_data.dat',/get_lun
